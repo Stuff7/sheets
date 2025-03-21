@@ -1,0 +1,20 @@
+{
+  "name": "sheets",
+  "version": "0.0.1",
+  "description": "Spreadsheets",
+  "main": "src/main.tsx",
+  "type": "module",
+  "author": "Armando",
+  "scripts": {
+    "build": "./build.sh release",
+    "dev": "dirwatch -watch src -port 8080 -serve dist -run 'sh build.sh'",
+    "tsc": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.0.14",
+    "esbuild": "^0.25.1",
+    "jsx": "https://github.com/Stuff7/jsx/releases/download/13779358591/jsx-1.0.0.tgz",
+    "tailwindcss": "^4.0.14",
+    "typescript": "^5.8.2"
+  }
+}
