@@ -32,7 +32,10 @@ document.body.append(
         <i>{prefersDark() ? "" : ""}</i>
       </button>
       <span class:overflow-hidden>
-        {contentWidth()} {contentHeight()}
+        <em>
+          Press <strong>?</strong> for dbg info
+        </em>{" "}
+        | {contentWidth()} {contentHeight()}
       </span>
     </header>
     <article $ref={content} class:overflow-hidden>
