@@ -56,7 +56,7 @@ export function initWebGL(
 type ShaderData = {
   drawMode: GLenum;
   vertex: Float32Array;
-  index: Uint16Array;
+  index: Uint8Array;
   instance: Float32Array;
 };
 
@@ -66,6 +66,7 @@ export type Shader = {
   instanceData: Float32Array;
   instanceOffset: number;
   numInstances: number;
+  indexOffset: number;
   numIndices: number;
 };
 
@@ -171,6 +172,7 @@ export function initShaderSystem(
           instanceData: data.instance,
           instanceOffset: dynamicBufOffset,
           numInstances: data.instance.length / 2,
+          indexOffset: indexBufOffset,
           numIndices: data.index.length,
         };
 
@@ -191,7 +193,7 @@ export function initShaderSystem(
           this.gl.FLOAT,
           false,
           stride,
-          0,
+          staticBufOffset + 0,
         );
         this.gl.enableVertexAttribArray(this.inputs.color);
         this.gl.vertexAttribPointer(
@@ -200,7 +202,7 @@ export function initShaderSystem(
           this.gl.FLOAT,
           false,
           stride,
-          2 * 4,
+          staticBufOffset + 2 * 4,
         );
 
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuf);
@@ -223,7 +225,7 @@ export function initShaderSystem(
           this.gl.FLOAT,
           false,
           2 * 4,
-          0,
+          dynamicBufOffset + 0,
         );
         this.gl.vertexAttribDivisor(this.inputs.transform, 1);
 
@@ -262,8 +264,8 @@ export function initShaderSystem(
         this.gl.drawElementsInstanced(
           shader.drawMode,
           shader.numIndices,
-          this.gl.UNSIGNED_SHORT,
-          0,
+          this.gl.UNSIGNED_BYTE,
+          shader.indexOffset,
           shader.numInstances,
         );
       }

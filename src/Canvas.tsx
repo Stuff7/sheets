@@ -32,7 +32,7 @@ export default function Canvas(props: CanvasProps) {
     10, 0,
   ]));
   // biome-ignore format:
-  const [quadTransforms, setQuadTransforms] = ref(new Float32Array([
+  const [quadTransforms, setQuadTransforms] = ref<Float32Array>(new Float32Array([
     15, 0,
     60, 0,
   ]));
@@ -61,7 +61,7 @@ export default function Canvas(props: CanvasProps) {
       0, 0, 1, 1, 0,
       0, 100, 1, 0, 0,
     ]);
-    const lineIndices = new Uint16Array([0, 1]);
+    const lineIndices = new Uint8Array([0, 1]);
 
     // biome-ignore format:
     const quadVertices = new Float32Array([
@@ -70,7 +70,7 @@ export default function Canvas(props: CanvasProps) {
       40, 20, 0, 1, 1,
       0, 20, 1, 0, 1,
     ]);
-    const quadIndices = new Uint16Array([0, 1, 2, 2, 3, 0]);
+    const quadIndices = new Uint8Array([0, 1, 2, 2, 3, 0]);
 
     [lineShader, quadShader] = shaderSys.initShaders(
       {
@@ -98,6 +98,10 @@ export default function Canvas(props: CanvasProps) {
       setLineTransforms(shaderSys.updateInstance(lineShader, 0, -1, 0));
     } else if (k === "D") {
       setLineTransforms(shaderSys.updateInstance(lineShader, 0, 1, 0));
+    } else if (k === "ARROWLEFT") {
+      setQuadTransforms(shaderSys.updateInstance(quadShader, 0, -1, 0));
+    } else if (k === "ARROWRIGHT") {
+      setQuadTransforms(shaderSys.updateInstance(quadShader, 0, 1, 0));
     } else if (k === "?") {
       setDbg(!dbg());
     }
@@ -120,7 +124,7 @@ export default function Canvas(props: CanvasProps) {
 
   watchFn(aspectRatio, updateProjection);
 
-  watchOnly([projection, lineTransforms], () => {
+  watchOnly([projection, lineTransforms, quadTransforms], () => {
     if (gl) shaderSys.draw();
   });
 
@@ -131,8 +135,11 @@ export default function Canvas(props: CanvasProps) {
         class="absolute left-0 top-0 p-2 bg-zinc-900/75 font-mono max-h-dvh overflow-auto"
         class:hidden={!dbg()}
       >
-        Transforms: <br />
+        LnTransforms: <br />
         {formatVec(lineTransforms())}
+        <br /> <br />
+        QdTransforms: <br />
+        {formatVec(quadTransforms())}
         <br /> <br />
         Projection: <br />
         {formatMatrix(projection())}
