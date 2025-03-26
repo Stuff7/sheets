@@ -1,3 +1,10 @@
+import {
+  numInstanceAttrs,
+  instAttrSize,
+  instStride,
+  vertStride,
+} from "./instance";
+
 export function compileShader(
   gl: WebGLRenderingContext,
   source: string,
@@ -33,6 +40,10 @@ export function initWebGL(
   const gl = canvas.getContext("webgl2")!;
 
   if (!gl) return new Error("WebGL not supported.");
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.enable(gl.DEPTH_TEST);
 
   const vert = compileShader(gl, vsSource, gl.VERTEX_SHADER);
   if (vert instanceof Error) return vert;
@@ -73,9 +84,28 @@ export type Shader = {
 type ShaderInputs = {
   position: GLint;
   color: GLint;
-  transform: GLint;
+  model: GLint;
   projection: WebGLUniformLocation;
+  uv: GLint;
+  hasUV: GLint;
 };
+
+function mapShader(
+  gl: WebGL2RenderingContext,
+  program: WebGLProgram,
+): ShaderInputs | Error {
+  const projection = gl.getUniformLocation(program, "projection");
+  if (!projection) return new Error("Missing shader projection");
+
+  return {
+    position: gl.getAttribLocation(program, "position"),
+    color: gl.getAttribLocation(program, "color"),
+    model: gl.getAttribLocation(program, "instModel"),
+    projection,
+    uv: gl.getAttribLocation(program, "uv"),
+    hasUV: gl.getAttribLocation(program, "instHasUV"),
+  };
+}
 
 export type ShaderSystem = {
   gl: WebGL2RenderingContext;
@@ -90,34 +120,18 @@ export type ShaderSystem = {
   updateInstance(
     shader: Shader,
     index: number,
-    x: number,
-    y: number,
+    instance: Float32Array,
   ): Float32Array;
 };
-
-function mapShader(
-  gl: WebGL2RenderingContext,
-  program: WebGLProgram,
-): ShaderInputs | Error {
-  const projection = gl.getUniformLocation(program, "projection");
-  if (!projection) return new Error("Missing shader projection");
-
-  return {
-    position: gl.getAttribLocation(program, "position"),
-    color: gl.getAttribLocation(program, "color"),
-    transform: gl.getAttribLocation(program, "transform"),
-    projection,
-  };
-}
 
 function aligned(v: number, alignment: number): number {
   return (v + (alignment - 1)) & ~(alignment - 1);
 }
 
-export function initShaderSystem(
+export async function initShaderSystem(
   gl: WebGL2RenderingContext,
   program: WebGLProgram,
-): ShaderSystem | Error {
+): Promise<ShaderSystem | Error> {
   const inputs = mapShader(gl, program);
   if (inputs instanceof Error) return inputs;
 
@@ -138,7 +152,6 @@ export function initShaderSystem(
         indexBufSize = aligned(indexBufSize + data.index.byteLength, 16);
         dynamicBufSize = aligned(dynamicBufSize + data.instance.byteLength, 16);
       }
-      console.log({ staticBufSize, indexBufSize, dynamicBufSize });
 
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.staticBuf);
       this.gl.bufferData(
@@ -171,7 +184,7 @@ export function initShaderSystem(
           drawMode: data.drawMode,
           instanceData: data.instance,
           instanceOffset: dynamicBufOffset,
-          numInstances: data.instance.length / 2,
+          numInstances: data.instance.length / numInstanceAttrs,
           indexOffset: indexBufOffset,
           numIndices: data.index.length,
         };
@@ -185,14 +198,13 @@ export function initShaderSystem(
           data.vertex,
         );
 
-        const stride = 5 * 4;
         this.gl.enableVertexAttribArray(this.inputs.position);
         this.gl.vertexAttribPointer(
           this.inputs.position,
           2,
           this.gl.FLOAT,
           false,
-          stride,
+          vertStride,
           staticBufOffset + 0,
         );
         this.gl.enableVertexAttribArray(this.inputs.color);
@@ -201,9 +213,18 @@ export function initShaderSystem(
           3,
           this.gl.FLOAT,
           false,
-          stride,
+          vertStride,
           staticBufOffset + 2 * 4,
         );
+        this.gl.vertexAttribPointer(
+          this.inputs.uv,
+          2,
+          this.gl.FLOAT,
+          false,
+          vertStride,
+          staticBufOffset + 5 * 4,
+        );
+        this.gl.enableVertexAttribArray(this.inputs.uv);
 
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuf);
         this.gl.bufferSubData(
@@ -218,16 +239,31 @@ export function initShaderSystem(
           dynamicBufOffset,
           data.instance,
         );
-        this.gl.enableVertexAttribArray(this.inputs.transform);
+
+        for (let i = 0; i < 4; i++) {
+          const loc = this.inputs.model + i;
+          this.gl.enableVertexAttribArray(loc);
+          this.gl.vertexAttribPointer(
+            loc,
+            4,
+            this.gl.FLOAT,
+            false,
+            instStride,
+            dynamicBufOffset + i * 16,
+          );
+          this.gl.vertexAttribDivisor(loc, 1);
+        }
+
+        this.gl.enableVertexAttribArray(this.inputs.hasUV);
         this.gl.vertexAttribPointer(
-          this.inputs.transform,
-          2,
+          this.inputs.hasUV,
+          1,
           this.gl.FLOAT,
           false,
-          2 * 4,
-          dynamicBufOffset + 0,
+          instStride,
+          dynamicBufOffset + 16 * instAttrSize,
         );
-        this.gl.vertexAttribDivisor(this.inputs.transform, 1);
+        this.gl.vertexAttribDivisor(this.inputs.hasUV, 1);
 
         staticBufOffset = aligned(staticBufOffset + data.vertex.byteLength, 16);
         indexBufOffset = aligned(indexBufOffset + data.index.byteLength, 16);
@@ -241,15 +277,12 @@ export function initShaderSystem(
 
       return this.shaders;
     },
-    updateInstance(shader: Shader, index: number, x: number, y: number) {
-      shader.instanceData[index * 2] += x;
-      shader.instanceData[index * 2 + 1] += y;
-
+    updateInstance(shader: Shader, index: number, instance: Float32Array) {
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicBuf);
       this.gl.bufferSubData(
         this.gl.ARRAY_BUFFER,
-        shader.instanceOffset + index * 16,
-        shader.instanceData.subarray(index * 4, index * 4 + 4),
+        shader.instanceOffset + index * instStride,
+        instance,
       );
 
       return shader.instanceData;

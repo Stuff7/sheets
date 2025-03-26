@@ -1,11 +1,18 @@
-import { watch, ref, watchOnly, watchFn } from "jsx";
+import { ref, watchOnly, watchFn } from "jsx";
 import {
   initShaderSystem,
   initWebGL,
   type ShaderSystem,
   type Shader,
 } from "./gl";
-import { formatMatrix, formatVec, identity, ortho } from "./math";
+import { Mat4 } from "./math";
+import { loadTexture, renderTextToImage } from "./texture";
+import {
+  initInstances,
+  LINE_MESH,
+  QUAD_MESH,
+  type Instances,
+} from "./instance";
 
 type CanvasProps = {
   width: number;
@@ -13,7 +20,6 @@ type CanvasProps = {
 };
 
 export default function Canvas(props: CanvasProps) {
-  const canvasUnits = 100;
   let canvas!: HTMLCanvasElement;
   let gl!: WebGL2RenderingContext;
   let lineShader!: Shader;
@@ -21,31 +27,17 @@ export default function Canvas(props: CanvasProps) {
   let shaderSys!: ShaderSystem;
 
   const [dbg, setDbg] = ref(false);
-  const [aspectRatio, setAspectRatio] = ref(0);
-  const [projection, setProjection] = ref(identity());
+  const [projection, setProjection] = ref(Mat4.identity());
   // biome-ignore format:
-  const [lineTransforms, setLineTransforms] = ref<Float32Array>(new Float32Array([
-    1, 0,
-    3, 0,
-    5, 0,
-    7, 0,
-    10, 0,
-  ]));
+  const [lineInstances, setLineInstances] = ref(initInstances(5));
   // biome-ignore format:
-  const [quadTransforms, setQuadTransforms] = ref<Float32Array>(new Float32Array([
-    15, 0,
-    60, 0,
-  ]));
-
-  watch(() => {
-    if (props.height) setAspectRatio(props.width / props.height);
-  });
+  const [quadInstances, setQuadInstances] = ref(initInstances(3));
 
   queueMicrotask(async () => {
     // jsx: string import
-    const vert = "line.vert";
+    const vert = "cell.vert";
     // jsx: string import
-    const frag = "line.frag";
+    const frag = "cell.frag";
 
     const result = initWebGL(canvas, vert, frag);
 
@@ -53,57 +45,111 @@ export default function Canvas(props: CanvasProps) {
 
     gl = result.gl;
 
-    shaderSys = initShaderSystem(gl, result.program) as ShaderSystem;
+    const text = await renderTextToImage("Hello World!", {
+      font: "32px mono",
+      fillStyle: "white",
+    });
+
+    loadTexture(gl, text);
+    shaderSys = (await initShaderSystem(gl, result.program)) as ShaderSystem;
+
     if (shaderSys instanceof Error) return;
 
-    // biome-ignore format:
-    const lineVertices = new Float32Array([
-      0, 0, 1, 1, 0,
-      0, 100, 1, 0, 0,
-    ]);
-    const lineIndices = new Uint8Array([0, 1]);
+    setLineInstances.byRef((inst) => {
+      for (let i = 0; i < inst.len; i++) {
+        const model = inst.modelAt(i);
+        Mat4.scale(model, 1, 2000, 1);
+        Mat4.translate(model, i * 50, 0, 0);
+      }
+    });
 
-    // biome-ignore format:
-    const quadVertices = new Float32Array([
-      0, 0, 1, 1, 0,
-      40, 0, 0, 1, 0,
-      40, 20, 0, 1, 1,
-      0, 20, 1, 0, 1,
-    ]);
-    const quadIndices = new Uint8Array([0, 1, 2, 2, 3, 0]);
+    setQuadInstances.byRef((inst) => {
+      for (let i = 1; i < inst.len; i++) {
+        const model = inst.modelAt(i);
+        Mat4.scale(model, text.width, 50, 1);
+        Mat4.translate(model, i * text.width, 0, 0);
+      }
+      inst.hasUVAt(0)[0] = 1;
+      const model = inst.modelAt(0);
+      Mat4.scale(model, text.width, text.height, 1);
+      Mat4.translate(model, 0, 0, 100);
+    });
 
     [lineShader, quadShader] = shaderSys.initShaders(
       {
         drawMode: gl.LINES,
-        instance: lineTransforms(),
-        index: lineIndices,
-        vertex: lineVertices,
+        instance: lineInstances().data,
+        vertex: LINE_MESH.vertexData,
+        index: LINE_MESH.indexData,
       },
       {
         drawMode: gl.TRIANGLE_STRIP,
-        instance: quadTransforms(),
-        index: quadIndices,
-        vertex: quadVertices,
+        instance: quadInstances().data,
+        vertex: QUAD_MESH.vertexData,
+        index: QUAD_MESH.indexData,
       },
     );
-    console.log(lineShader, quadShader);
+    console.log(shaderSys);
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     updateProjection();
   });
 
+  let instIdx = 0;
+  function translateInstance(
+    inst: Instances,
+    shader: Shader,
+    tx: number,
+    ty: number,
+    tz: number,
+  ) {
+    const model = inst.modelAt(instIdx);
+    Mat4.translate(model, tx, ty, tz);
+    shaderSys.updateInstance(shader, instIdx, model);
+  }
+
   function keyListener(ev: KeyboardEvent) {
     const k = ev.key.toUpperCase();
-    if (k === "A") {
-      setLineTransforms(shaderSys.updateInstance(lineShader, 0, -1, 0));
+    const speed = 10;
+
+    if (k === "W") {
+      setLineInstances.byRef((inst) =>
+        translateInstance(inst, lineShader, 0, speed, 0),
+      );
+    } else if (k === "A") {
+      setLineInstances.byRef((inst) =>
+        translateInstance(inst, lineShader, -speed, 0, 0),
+      );
+    } else if (k === "S") {
+      setLineInstances.byRef((inst) =>
+        translateInstance(inst, lineShader, 0, -speed, 0),
+      );
     } else if (k === "D") {
-      setLineTransforms(shaderSys.updateInstance(lineShader, 0, 1, 0));
+      setLineInstances.byRef((inst) =>
+        translateInstance(inst, lineShader, speed, 0, 0),
+      );
+    } else if (k === "ARROWUP") {
+      setQuadInstances.byRef((inst) =>
+        translateInstance(inst, quadShader, 0, speed, 0),
+      );
     } else if (k === "ARROWLEFT") {
-      setQuadTransforms(shaderSys.updateInstance(quadShader, 0, -1, 0));
+      setQuadInstances.byRef((inst) =>
+        translateInstance(inst, quadShader, -speed, 0, 0),
+      );
+    } else if (k === "ARROWDOWN") {
+      setQuadInstances.byRef((inst) =>
+        translateInstance(inst, quadShader, 0, -speed, 0),
+      );
     } else if (k === "ARROWRIGHT") {
-      setQuadTransforms(shaderSys.updateInstance(quadShader, 0, 1, 0));
+      setQuadInstances.byRef((inst) =>
+        translateInstance(inst, quadShader, speed, 0, 0),
+      );
     } else if (k === "?") {
       setDbg(!dbg());
+    } else {
+      const n = Number.parseInt(k, 10);
+      if (!Number.isNaN(n)) instIdx = n;
+      console.log("KEY", k);
     }
   }
 
@@ -117,14 +163,14 @@ export default function Canvas(props: CanvasProps) {
     gl.viewport(0, 0, props.width, props.height);
 
     setProjection.byRef((proj) => {
-      ortho(0, canvasUnits * aspectRatio(), 0, canvasUnits, -1, 1, proj);
+      Mat4.ortho(0, props.width, 0, props.height, -1, 1000, proj);
       gl.uniformMatrix4fv(shaderSys.inputs.projection, false, proj);
     });
   }
 
-  watchFn(aspectRatio, updateProjection);
+  watchFn(() => [props.width, props.height], updateProjection);
 
-  watchOnly([projection, lineTransforms, quadTransforms], () => {
+  watchOnly([projection, lineInstances, quadInstances], () => {
     if (gl) shaderSys.draw();
   });
 
@@ -132,17 +178,17 @@ export default function Canvas(props: CanvasProps) {
     <>
       <canvas $ref={canvas} g:onkeydown={keyListener} class="w-full h-full" />
       <pre
-        class="absolute left-0 top-0 p-2 bg-zinc-900/75 font-mono max-h-dvh overflow-auto"
+        class="absolute left-0 top-0 p-2 bg-zinc-900/75 text-zinc-100 font-mono max-h-dvh overflow-auto"
         class:hidden={!dbg()}
       >
-        LnTransforms: <br />
-        {formatVec(lineTransforms())}
+        LnModel: <br />
+        {Mat4.toString(lineInstances().modelAt(instIdx))}
         <br /> <br />
-        QdTransforms: <br />
-        {formatVec(quadTransforms())}
+        QdModel: <br />
+        {Mat4.toString(quadInstances().modelAt(instIdx))}
         <br /> <br />
         Projection: <br />
-        {formatMatrix(projection())}
+        {Mat4.toString(projection())}
       </pre>
     </>
   );
