@@ -4,6 +4,7 @@ import {
   INST_STRIDE,
   VERT_STRIDE,
 } from "./instance";
+import { loadTexture } from "./texture";
 
 export function compileShader(
   gl: WebGLRenderingContext,
@@ -128,18 +129,24 @@ function aligned(v: number, alignment: number): number {
 }
 
 export async function initShaderSystem(
-  gl: WebGL2RenderingContext,
-  program: WebGLProgram,
+  canvas: HTMLCanvasElement,
+  vert: string,
+  frag: string,
+  texture: HTMLImageElement,
 ): Promise<ShaderSystem | Error> {
-  const inputs = mapShader(gl, program);
+  const result = initWebGL(canvas, vert, frag);
+  if (result instanceof Error) return result;
+  loadTexture(result.gl, texture);
+
+  const inputs = mapShader(result.gl, result.program);
   if (inputs instanceof Error) return inputs;
 
   return {
-    gl,
+    gl: result.gl,
     inputs,
     shaders: [],
-    staticBuf: gl.createBuffer(),
-    indexBuf: gl.createBuffer(),
+    staticBuf: result.gl.createBuffer(),
+    indexBuf: result.gl.createBuffer(),
     initShaders(...shaders) {
       let staticBufSize = 0;
       let indexBufSize = 0;
@@ -170,7 +177,7 @@ export async function initShaderSystem(
         const shader: Shader = {
           id: this.gl.createVertexArray(),
           drawMode: data.drawMode,
-          buf: gl.createBuffer(),
+          buf: this.gl.createBuffer(),
           instanceData: data.instance,
           numInstances: data.instance.length / NUM_INST_ATTRS,
           indexOffset: indexBufOffset,
