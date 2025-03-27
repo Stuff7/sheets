@@ -1,7 +1,12 @@
 import { ref, watchOnly, watchFn } from "jsx";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
 import { Mat4 } from "./math";
-import { renderTextToImage } from "./texture";
+import {
+  type Atlas,
+  createTextureAtlas,
+  loadTextureAtlas,
+  renderTextToImage,
+} from "./texture";
 import { initInstances, QUAD_MESH, type Instances } from "./instance";
 
 const CELL_W = 100;
@@ -17,7 +22,7 @@ export default function Canvas(props: CanvasProps) {
   let shaderSys!: ShaderSystem;
   let shader!: Shader;
 
-  const [text, setText] = ref<HTMLImageElement>();
+  const [texts, setTexts] = ref<HTMLImageElement[]>([]);
   const [dbg, setDbg] = ref(false);
   const [projection, setProjection] = ref(Mat4.identity());
   const [instances, setInstances] = ref(initInstances(10));
@@ -28,14 +33,7 @@ export default function Canvas(props: CanvasProps) {
     // jsx: string import
     const frag = "cell.frag";
 
-    setText(
-      await renderTextToImage("Hello World!", {
-        font: "32px mono",
-        fillStyle: "white",
-      }),
-    );
-
-    const result = await initShaderSystem(canvas, vert, frag, text());
+    const result = await initShaderSystem(canvas, vert, frag);
     if (result instanceof Error) return console.error(result);
     shaderSys = result;
 
@@ -48,6 +46,21 @@ export default function Canvas(props: CanvasProps) {
 
     updateProjection();
   });
+
+  let atlas: Atlas;
+  function addText(value: string) {
+    setTexts.byRefAsync(async (t) => {
+      t.push(
+        await renderTextToImage(value, {
+          font: "24px mono",
+          backgroundColor: "coral",
+        }),
+      );
+      atlas = createTextureAtlas(t);
+      console.log(atlas);
+      loadTextureAtlas(shaderSys.gl);
+    });
+  }
 
   let instIdx = 0;
   function translateInstance(
@@ -98,16 +111,15 @@ export default function Canvas(props: CanvasProps) {
   }
 
   watchFn(
-    () => [props.width, props.height, text()],
+    () => [props.width, props.height, texts()],
     () => {
-      if (!text()) return;
       const rows = Math.ceil(props.width / CELL_W);
       if (!rows) return;
       const cols = Math.ceil(props.height / CELL_H);
       if (!cols) return;
 
       setInstances.byRef((inst) => {
-        inst.resize(rows + cols + 1);
+        inst.resize(rows + cols + texts().length + 1);
 
         for (let i = 0; i < rows; i++) {
           const model = inst.modelAt(i);
@@ -125,18 +137,42 @@ export default function Canvas(props: CanvasProps) {
           inst.hasUVAt(i + rows)[0] = 0;
         }
 
-        inst.hasUVAt(rows + cols)[0] = 1;
-        inst.colorAt(rows + cols).set([0, 0, 0]);
-        const model = inst.modelAt(rows + cols);
-        Mat4.scaleIdentity(model, text().width, text().height, 1);
-        Mat4.translateTo(
-          model,
-          (props.width - text().width) / 2,
-          (props.height - text().height) / 2,
-          100,
-        );
+        for (let i = 0; i < texts().length; i++) {
+          const t = atlas.dimensions[i];
+          const uv = atlas.uvCoords.subarray(i * 4, i * 4 + 4);
+          console.log(JSON.stringify({ t, uv }, null, 2));
+          inst.hasUVAt(rows + cols + i)[0] = 1;
+          inst.colorAt(rows + cols + i).set([0, 0, 0]);
+          inst.uvAt(rows + cols + i).set(uv);
+          const model = inst.modelAt(rows + cols + i);
+          Mat4.scaleIdentity(model, t.width, t.height, 1);
+          Mat4.translateTo(
+            model,
+            (props.width - t.width) / 2,
+            (props.height - t.height) / 2 + t.height * i,
+            100,
+          );
+        }
+        if (atlas) {
+          const i = texts().length;
+          const t = atlas.dimensions[0];
+          inst.hasUVAt(rows + cols + i)[0] = 1;
+          inst.colorAt(rows + cols + i).set([0, 0, 0]);
+          inst.uvAt(rows + cols + i).set([0, 1, 1, 0]);
+          const model = inst.modelAt(rows + cols + i);
+          console.log(JSON.stringify(atlas));
+          Mat4.scaleIdentity(model, t.width, t.height, 1);
+          Mat4.translateTo(
+            model,
+            (props.width - t.width) / 2,
+            (props.height - t.height) / 2 + t.height * i,
+            100,
+          );
+        }
 
-        shaderSys?.resizeInstances(shader, inst.data);
+        if (shader && shaderSys) {
+          shaderSys?.resizeInstances(shader, inst.data);
+        }
       });
 
       updateProjection();
@@ -150,6 +186,10 @@ export default function Canvas(props: CanvasProps) {
   return (
     <>
       <canvas $ref={canvas} g:onkeydown={keyListener} class="w-full h-full" />
+      <input
+        class="absolute left-0 top-10 z-10"
+        on:change={(e) => addText(e.currentTarget.value)}
+      />
       <pre
         class="absolute left-0 top-0 p-2 bg-zinc-900/75 text-zinc-100 font-mono max-h-dvh overflow-auto"
         class:hidden={!dbg()}

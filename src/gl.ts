@@ -4,7 +4,7 @@ import {
   INST_STRIDE,
   VERT_STRIDE,
 } from "./instance";
-import { loadTexture } from "./texture";
+import { loadTextureAtlas } from "./texture";
 
 export function compileShader(
   gl: WebGLRenderingContext,
@@ -100,10 +100,10 @@ function mapShader(
   return {
     projection,
     position: gl.getAttribLocation(program, "position"),
-    uv: gl.getAttribLocation(program, "uv"),
     model: gl.getAttribLocation(program, "instModel"),
     color: gl.getAttribLocation(program, "instColor"),
     hasUV: gl.getAttribLocation(program, "instHasUV"),
+    uv: gl.getAttribLocation(program, "instUV"),
   };
 }
 
@@ -132,11 +132,10 @@ export async function initShaderSystem(
   canvas: HTMLCanvasElement,
   vert: string,
   frag: string,
-  texture: HTMLImageElement,
 ): Promise<ShaderSystem | Error> {
   const result = initWebGL(canvas, vert, frag);
   if (result instanceof Error) return result;
-  loadTexture(result.gl, texture);
+  loadTextureAtlas(result.gl);
 
   const inputs = mapShader(result.gl, result.program);
   if (inputs instanceof Error) return inputs;
@@ -207,17 +206,8 @@ export async function initShaderSystem(
           this.gl.FLOAT,
           false,
           VERT_STRIDE,
-          staticBufOffset + 0,
+          staticBufOffset,
         );
-        this.gl.vertexAttribPointer(
-          this.inputs.uv,
-          2,
-          this.gl.FLOAT,
-          false,
-          VERT_STRIDE,
-          staticBufOffset + 2 * 4,
-        );
-        this.gl.enableVertexAttribArray(this.inputs.uv);
 
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuf);
         this.gl.bufferSubData(
@@ -264,6 +254,17 @@ export async function initShaderSystem(
           19 * INST_ATTR_SIZE,
         );
         this.gl.vertexAttribDivisor(this.inputs.hasUV, 1);
+
+        this.gl.enableVertexAttribArray(this.inputs.uv);
+        this.gl.vertexAttribPointer(
+          this.inputs.uv,
+          4,
+          this.gl.FLOAT,
+          false,
+          INST_STRIDE,
+          20 * INST_ATTR_SIZE,
+        );
+        this.gl.vertexAttribDivisor(this.inputs.uv, 1);
 
         staticBufOffset = aligned(staticBufOffset + data.vertex.byteLength, 16);
         indexBufOffset = aligned(indexBufOffset + data.index.byteLength, 16);

@@ -1,6 +1,6 @@
 import { Mat4 } from "./math";
 
-export const NUM_INST_ATTRS = 20;
+export const NUM_INST_ATTRS = 24;
 export const INST_ATTR_SIZE = 4;
 export const INST_STRIDE = NUM_INST_ATTRS * INST_ATTR_SIZE;
 
@@ -12,14 +12,19 @@ export type Instances = {
   modelAt(index: number): Float32Array;
   colorAt(index: number): Float32Array;
   hasUVAt(index: number): Float32Array;
+  uvAt(index: number): Float32Array;
 };
+
+function initData(data: Float32Array, len: number) {
+  for (let i = 0; i < len * NUM_INST_ATTRS; i += NUM_INST_ATTRS) {
+    data.set(Mat4.identity(), i);
+    data.set([0, 1, 1, 0], i + 20);
+  }
+}
 
 export function initInstances(len: number): Instances {
   const data = new Float32Array(len * NUM_INST_ATTRS);
-
-  for (let i = 0; i < len * NUM_INST_ATTRS; i += NUM_INST_ATTRS) {
-    data.set(Mat4.identity(), i);
-  }
+  initData(data, len);
 
   return {
     data,
@@ -33,12 +38,7 @@ export function initInstances(len: number): Instances {
       } else {
         const data = new Float32Array(size);
         data.set(this.data);
-
-        const end = (len - this.len) * NUM_INST_ATTRS;
-        for (let i = 0; i < end; i += NUM_INST_ATTRS) {
-          data.set(Mat4.identity(), this.data.length + i);
-        }
-
+        initData(data.subarray(this.data.length), len - this.len);
         this.data = data;
       }
       this.len = len;
@@ -56,6 +56,10 @@ export function initInstances(len: number): Instances {
       const start = index * NUM_INST_ATTRS + 19;
       return this.data.subarray(start, start + 1);
     },
+    uvAt(index) {
+      const start = index * NUM_INST_ATTRS + 20;
+      return this.data.subarray(start, start + 4);
+    },
   };
 }
 
@@ -64,18 +68,18 @@ type Mesh = {
   indexData: Uint8Array;
 };
 
-export const NUM_VERT_ATTRS = 4;
-export const INST_VERT_SIZE = 4;
-export const VERT_STRIDE = NUM_VERT_ATTRS * INST_VERT_SIZE;
+export const NUM_VERT_ATTRS = 2;
+export const VERT_ATTR_SIZE = 4;
+export const VERT_STRIDE = NUM_VERT_ATTRS * VERT_ATTR_SIZE;
 
 export const QUAD_MESH: Mesh = {
   // biome-ignore format:
   vertexData: new Float32Array([
- // position       uv
-    0.0, 0.0,   0.0, 1.0,
-    1.0, 0.0,   1.0, 1.0,
-    1.0, 1.0,   1.0, 0.0,
-    0.0, 1.0,   0.0, 0.0,
+ // position
+    0.0, 0.0,
+    1.0, 0.0,
+    1.0, 1.0,
+    0.0, 1.0,
   ]),
   indexData: new Uint8Array([0, 1, 2, 2, 3, 0]),
 };
