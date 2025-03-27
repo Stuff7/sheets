@@ -1,8 +1,8 @@
 import {
-  numInstanceAttrs,
-  instAttrSize,
-  instStride,
-  vertStride,
+  NUM_INST_ATTRS,
+  INST_ATTR_SIZE,
+  INST_STRIDE,
+  VERT_STRIDE,
 } from "./instance";
 
 export function compileShader(
@@ -36,14 +36,13 @@ export function initWebGL(
   vsSource: string,
   fsSource: string,
 ) {
-  // biome-ignore lint/style/noNonNullAssertion:
-  const gl = canvas.getContext("webgl2")!;
-
+  const gl = canvas.getContext("webgl2") as WebGL2RenderingContext;
   if (!gl) return new Error("WebGL not supported.");
 
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0.08, 0.08, 0.08, 1.0);
 
   const vert = compileShader(gl, vsSource, gl.VERTEX_SHADER);
   if (vert instanceof Error) return vert;
@@ -73,9 +72,9 @@ type ShaderData = {
 
 export type Shader = {
   id: WebGLVertexArrayObject;
+  buf: WebGLBuffer;
   drawMode: GLenum;
   instanceData: Float32Array;
-  instanceOffset: number;
   numInstances: number;
   indexOffset: number;
   numIndices: number;
@@ -98,11 +97,11 @@ function mapShader(
   if (!projection) return new Error("Missing shader projection");
 
   return {
-    position: gl.getAttribLocation(program, "position"),
-    color: gl.getAttribLocation(program, "color"),
-    model: gl.getAttribLocation(program, "instModel"),
     projection,
+    position: gl.getAttribLocation(program, "position"),
     uv: gl.getAttribLocation(program, "uv"),
+    model: gl.getAttribLocation(program, "instModel"),
+    color: gl.getAttribLocation(program, "instColor"),
     hasUV: gl.getAttribLocation(program, "instHasUV"),
   };
 }
@@ -112,7 +111,6 @@ export type ShaderSystem = {
   inputs: ShaderInputs;
   shaders: Shader[];
   staticBuf: WebGLBuffer;
-  dynamicBuf: WebGLBuffer;
   indexBuf: WebGLBuffer;
 
   draw(): void;
@@ -122,6 +120,7 @@ export type ShaderSystem = {
     index: number,
     instance: Float32Array,
   ): Float32Array;
+  resizeInstances(shader: Shader, instances: Float32Array): void;
 };
 
 function aligned(v: number, alignment: number): number {
@@ -140,17 +139,14 @@ export async function initShaderSystem(
     inputs,
     shaders: [],
     staticBuf: gl.createBuffer(),
-    dynamicBuf: gl.createBuffer(),
     indexBuf: gl.createBuffer(),
     initShaders(...shaders) {
       let staticBufSize = 0;
       let indexBufSize = 0;
-      let dynamicBufSize = 0;
 
       for (const data of shaders) {
         staticBufSize = aligned(staticBufSize + data.vertex.byteLength, 16);
         indexBufSize = aligned(indexBufSize + data.index.byteLength, 16);
-        dynamicBufSize = aligned(dynamicBufSize + data.instance.byteLength, 16);
       }
 
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.staticBuf);
@@ -167,27 +163,26 @@ export async function initShaderSystem(
         this.gl.STATIC_DRAW,
       );
 
-      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicBuf);
-      this.gl.bufferData(
-        this.gl.ARRAY_BUFFER,
-        dynamicBufSize,
-        this.gl.DYNAMIC_DRAW,
-      );
-
       let staticBufOffset = 0;
       let indexBufOffset = 0;
-      let dynamicBufOffset = 0;
 
       this.shaders = shaders.map((data) => {
         const shader: Shader = {
           id: this.gl.createVertexArray(),
           drawMode: data.drawMode,
+          buf: gl.createBuffer(),
           instanceData: data.instance,
-          instanceOffset: dynamicBufOffset,
-          numInstances: data.instance.length / numInstanceAttrs,
+          numInstances: data.instance.length / NUM_INST_ATTRS,
           indexOffset: indexBufOffset,
           numIndices: data.index.length,
         };
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, shader.buf);
+        this.gl.bufferData(
+          this.gl.ARRAY_BUFFER,
+          shader.instanceData.byteLength * 20,
+          this.gl.DYNAMIC_DRAW,
+        );
 
         this.gl.bindVertexArray(shader.id);
 
@@ -204,25 +199,16 @@ export async function initShaderSystem(
           2,
           this.gl.FLOAT,
           false,
-          vertStride,
+          VERT_STRIDE,
           staticBufOffset + 0,
-        );
-        this.gl.enableVertexAttribArray(this.inputs.color);
-        this.gl.vertexAttribPointer(
-          this.inputs.color,
-          3,
-          this.gl.FLOAT,
-          false,
-          vertStride,
-          staticBufOffset + 2 * 4,
         );
         this.gl.vertexAttribPointer(
           this.inputs.uv,
           2,
           this.gl.FLOAT,
           false,
-          vertStride,
-          staticBufOffset + 5 * 4,
+          VERT_STRIDE,
+          staticBufOffset + 2 * 4,
         );
         this.gl.enableVertexAttribArray(this.inputs.uv);
 
@@ -233,12 +219,8 @@ export async function initShaderSystem(
           data.index,
         );
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicBuf);
-        this.gl.bufferSubData(
-          this.gl.ARRAY_BUFFER,
-          dynamicBufOffset,
-          data.instance,
-        );
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, shader.buf);
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, data.instance);
 
         for (let i = 0; i < 4; i++) {
           const loc = this.inputs.model + i;
@@ -248,11 +230,22 @@ export async function initShaderSystem(
             4,
             this.gl.FLOAT,
             false,
-            instStride,
-            dynamicBufOffset + i * 16,
+            INST_STRIDE,
+            i * 16,
           );
           this.gl.vertexAttribDivisor(loc, 1);
         }
+
+        this.gl.enableVertexAttribArray(this.inputs.color);
+        this.gl.vertexAttribPointer(
+          this.inputs.color,
+          3,
+          this.gl.FLOAT,
+          false,
+          INST_STRIDE,
+          16 * INST_ATTR_SIZE,
+        );
+        this.gl.vertexAttribDivisor(this.inputs.color, 1);
 
         this.gl.enableVertexAttribArray(this.inputs.hasUV);
         this.gl.vertexAttribPointer(
@@ -260,17 +253,13 @@ export async function initShaderSystem(
           1,
           this.gl.FLOAT,
           false,
-          instStride,
-          dynamicBufOffset + 16 * instAttrSize,
+          INST_STRIDE,
+          19 * INST_ATTR_SIZE,
         );
         this.gl.vertexAttribDivisor(this.inputs.hasUV, 1);
 
         staticBufOffset = aligned(staticBufOffset + data.vertex.byteLength, 16);
         indexBufOffset = aligned(indexBufOffset + data.index.byteLength, 16);
-        dynamicBufOffset = aligned(
-          dynamicBufOffset + data.instance.byteLength,
-          16,
-        );
 
         return shader;
       });
@@ -278,14 +267,19 @@ export async function initShaderSystem(
       return this.shaders;
     },
     updateInstance(shader: Shader, index: number, instance: Float32Array) {
-      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.dynamicBuf);
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, shader.buf);
       this.gl.bufferSubData(
         this.gl.ARRAY_BUFFER,
-        shader.instanceOffset + index * instStride,
+        index * INST_STRIDE,
         instance,
       );
 
       return shader.instanceData;
+    },
+    resizeInstances(shader: Shader, instances: Float32Array) {
+      shader.instanceData = instances;
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, shader.buf);
+      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, shader.instanceData);
     },
     draw() {
       if (!this.gl) return;
@@ -299,7 +293,7 @@ export async function initShaderSystem(
           shader.numIndices,
           this.gl.UNSIGNED_BYTE,
           shader.indexOffset,
-          shader.numInstances,
+          shader.instanceData.length / NUM_INST_ATTRS,
         );
       }
     },

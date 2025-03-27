@@ -1,33 +1,59 @@
 import { Mat4 } from "./math";
 
-export const numInstanceAttrs = 17;
-export const instAttrSize = 4;
-export const instStride = numInstanceAttrs * instAttrSize;
+export const NUM_INST_ATTRS = 20;
+export const INST_ATTR_SIZE = 4;
+export const INST_STRIDE = NUM_INST_ATTRS * INST_ATTR_SIZE;
 
 export type Instances = {
   data: Float32Array;
   len: number;
 
+  resize(len: number): boolean;
   modelAt(index: number): Float32Array;
+  colorAt(index: number): Float32Array;
   hasUVAt(index: number): Float32Array;
 };
 
 export function initInstances(len: number): Instances {
-  const data = new Float32Array(len * instStride);
+  const data = new Float32Array(len * NUM_INST_ATTRS);
 
-  for (let i = 0; i < len * numInstanceAttrs; i += numInstanceAttrs) {
+  for (let i = 0; i < len * NUM_INST_ATTRS; i += NUM_INST_ATTRS) {
     data.set(Mat4.identity(), i);
   }
 
   return {
     data,
     len,
+    resize(len) {
+      if (len === this.len) return false;
+
+      const size = len * NUM_INST_ATTRS;
+      if (len < this.len) {
+        this.data = this.data.subarray(0, size);
+      } else {
+        const data = new Float32Array(size);
+        data.set(this.data);
+
+        const end = (len - this.len) * NUM_INST_ATTRS;
+        for (let i = 0; i < end; i += NUM_INST_ATTRS) {
+          data.set(Mat4.identity(), this.data.length + i);
+        }
+
+        this.data = data;
+      }
+      this.len = len;
+      return true;
+    },
     modelAt(index) {
-      const start = index * numInstanceAttrs;
+      const start = index * NUM_INST_ATTRS;
       return this.data.subarray(start, start + 16);
     },
+    colorAt(index) {
+      const start = index * NUM_INST_ATTRS + 16;
+      return this.data.subarray(start, start + 3);
+    },
     hasUVAt(index) {
-      const start = index * numInstanceAttrs + 16;
+      const start = index * NUM_INST_ATTRS + 19;
       return this.data.subarray(start, start + 1);
     },
   };
@@ -38,28 +64,18 @@ type Mesh = {
   indexData: Uint8Array;
 };
 
-export const numVertAttrs = 7;
-export const instVertSize = 4;
-export const vertStride = numVertAttrs * instVertSize;
-
-export const LINE_MESH: Mesh = {
-  // biome-ignore format:
-  vertexData: new Float32Array([
- // position        color           uv
-    0.0, 0.0,   1.0, 1.0, 0.0,   0.5, 0.0,
-    0.0, 1.0,   1.0, 0.0, 0.0,   0.5, 1.0,
-  ]),
-  indexData: new Uint8Array([0, 1]),
-};
+export const NUM_VERT_ATTRS = 4;
+export const INST_VERT_SIZE = 4;
+export const VERT_STRIDE = NUM_VERT_ATTRS * INST_VERT_SIZE;
 
 export const QUAD_MESH: Mesh = {
   // biome-ignore format:
   vertexData: new Float32Array([
- // position        color           uv
-    0.0, 0.0,   1.0, 1.0, 0.0,   0.0, 1.0,
-    1.0, 0.0,   0.0, 1.0, 0.0,   1.0, 1.0,
-    1.0, 1.0,   0.0, 1.0, 1.0,   1.0, 0.0,
-    0.0, 1.0,   1.0, 0.0, 1.0,   0.0, 0.0,
+ // position       uv
+    0.0, 0.0,   0.0, 1.0,
+    1.0, 0.0,   1.0, 1.0,
+    1.0, 1.0,   1.0, 0.0,
+    0.0, 1.0,   0.0, 0.0,
   ]),
   indexData: new Uint8Array([0, 1, 2, 2, 3, 0]),
 };

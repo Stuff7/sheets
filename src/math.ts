@@ -53,6 +53,18 @@ export const Mat4 = {
     m4[14] += tz;
   },
 
+  translateTo(m4: Float32Array, tx: number, ty: number, tz: number) {
+    m4[12] = tx;
+    m4[13] = ty;
+    m4[14] = tz;
+  },
+
+  scaleIdentity(m4: Float32Array, sx: number, sy: number, sz: number) {
+    m4[0] = sx;
+    m4[5] = sy;
+    m4[10] = sz;
+  },
+
   scale(m4: Float32Array, sx: number, sy: number, sz: number) {
     m4[0] *= sx;
     m4[1] *= sx;

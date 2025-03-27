@@ -7,12 +7,7 @@ import {
 } from "./gl";
 import { Mat4 } from "./math";
 import { loadTexture, renderTextToImage } from "./texture";
-import {
-  initInstances,
-  LINE_MESH,
-  QUAD_MESH,
-  type Instances,
-} from "./instance";
+import { initInstances, QUAD_MESH, type Instances } from "./instance";
 
 type CanvasProps = {
   width: number;
@@ -22,16 +17,13 @@ type CanvasProps = {
 export default function Canvas(props: CanvasProps) {
   let canvas!: HTMLCanvasElement;
   let gl!: WebGL2RenderingContext;
-  let lineShader!: Shader;
-  let quadShader!: Shader;
+  let shader!: Shader;
   let shaderSys!: ShaderSystem;
+  let text!: HTMLImageElement;
 
   const [dbg, setDbg] = ref(false);
   const [projection, setProjection] = ref(Mat4.identity());
-  // biome-ignore format:
-  const [lineInstances, setLineInstances] = ref(initInstances(5));
-  // biome-ignore format:
-  const [quadInstances, setQuadInstances] = ref(initInstances(3));
+  const [instances, setInstances] = ref(initInstances(10));
 
   queueMicrotask(async () => {
     // jsx: string import
@@ -45,7 +37,7 @@ export default function Canvas(props: CanvasProps) {
 
     gl = result.gl;
 
-    const text = await renderTextToImage("Hello World!", {
+    text = await renderTextToImage("Hello World!", {
       font: "32px mono",
       fillStyle: "white",
     });
@@ -55,50 +47,20 @@ export default function Canvas(props: CanvasProps) {
 
     if (shaderSys instanceof Error) return;
 
-    setLineInstances.byRef((inst) => {
-      for (let i = 0; i < inst.len; i++) {
-        const model = inst.modelAt(i);
-        Mat4.scale(model, 1, 2000, 1);
-        Mat4.translate(model, i * 50, 0, 0);
-      }
+    [shader] = shaderSys.initShaders({
+      drawMode: gl.TRIANGLE_STRIP,
+      instance: instances().data,
+      vertex: QUAD_MESH.vertexData,
+      index: QUAD_MESH.indexData,
     });
-
-    setQuadInstances.byRef((inst) => {
-      for (let i = 1; i < inst.len; i++) {
-        const model = inst.modelAt(i);
-        Mat4.scale(model, text.width, 50, 1);
-        Mat4.translate(model, i * text.width, 0, 0);
-      }
-      inst.hasUVAt(0)[0] = 1;
-      const model = inst.modelAt(0);
-      Mat4.scale(model, text.width, text.height, 1);
-      Mat4.translate(model, 0, 0, 100);
-    });
-
-    [lineShader, quadShader] = shaderSys.initShaders(
-      {
-        drawMode: gl.LINES,
-        instance: lineInstances().data,
-        vertex: LINE_MESH.vertexData,
-        index: LINE_MESH.indexData,
-      },
-      {
-        drawMode: gl.TRIANGLE_STRIP,
-        instance: quadInstances().data,
-        vertex: QUAD_MESH.vertexData,
-        index: QUAD_MESH.indexData,
-      },
-    );
     console.log(shaderSys);
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
     updateProjection();
   });
 
   let instIdx = 0;
   function translateInstance(
     inst: Instances,
-    shader: Shader,
     tx: number,
     ty: number,
     tz: number,
@@ -113,37 +75,13 @@ export default function Canvas(props: CanvasProps) {
     const speed = 10;
 
     if (k === "W") {
-      setLineInstances.byRef((inst) =>
-        translateInstance(inst, lineShader, 0, speed, 0),
-      );
+      setInstances.byRef((inst) => translateInstance(inst, 0, speed, 0));
     } else if (k === "A") {
-      setLineInstances.byRef((inst) =>
-        translateInstance(inst, lineShader, -speed, 0, 0),
-      );
+      setInstances.byRef((inst) => translateInstance(inst, -speed, 0, 0));
     } else if (k === "S") {
-      setLineInstances.byRef((inst) =>
-        translateInstance(inst, lineShader, 0, -speed, 0),
-      );
+      setInstances.byRef((inst) => translateInstance(inst, 0, -speed, 0));
     } else if (k === "D") {
-      setLineInstances.byRef((inst) =>
-        translateInstance(inst, lineShader, speed, 0, 0),
-      );
-    } else if (k === "ARROWUP") {
-      setQuadInstances.byRef((inst) =>
-        translateInstance(inst, quadShader, 0, speed, 0),
-      );
-    } else if (k === "ARROWLEFT") {
-      setQuadInstances.byRef((inst) =>
-        translateInstance(inst, quadShader, -speed, 0, 0),
-      );
-    } else if (k === "ARROWDOWN") {
-      setQuadInstances.byRef((inst) =>
-        translateInstance(inst, quadShader, 0, -speed, 0),
-      );
-    } else if (k === "ARROWRIGHT") {
-      setQuadInstances.byRef((inst) =>
-        translateInstance(inst, quadShader, speed, 0, 0),
-      );
+      setInstances.byRef((inst) => translateInstance(inst, speed, 0, 0));
     } else if (k === "?") {
       setDbg(!dbg());
     } else {
@@ -168,10 +106,55 @@ export default function Canvas(props: CanvasProps) {
     });
   }
 
-  watchFn(() => [props.width, props.height], updateProjection);
+  watchFn(
+    () => [props.width, props.height],
+    () => {
+      const rows = Math.ceil(props.width / CELL_W);
+      if (!rows) return;
+      const cols = Math.ceil(props.height / CELL_H);
+      if (!cols) return;
 
-  watchOnly([projection, lineInstances, quadInstances], () => {
-    if (gl) shaderSys.draw();
+      setInstances.byRef((inst) => {
+        inst.resize(rows + cols + 1);
+
+        for (let i = 0; i < rows; i++) {
+          const model = inst.modelAt(i);
+          Mat4.scaleIdentity(model, 1, props.height, 1);
+          Mat4.translateTo(model, i * CELL_W, 0, 0);
+          inst.colorAt(i).set([1, 1, 1]);
+          inst.hasUVAt(i)[0] = 0;
+        }
+
+        for (let i = 0; i < cols; i++) {
+          const model = inst.modelAt(i + rows);
+          Mat4.scaleIdentity(model, props.width, 1, 1);
+          Mat4.translateTo(model, 0, i * CELL_H, 0);
+          inst.colorAt(i + rows).set([1, 1, 1]);
+          inst.hasUVAt(i + rows)[0] = 0;
+        }
+
+        if (text) {
+          inst.hasUVAt(rows + cols)[0] = 1;
+          inst.colorAt(rows + cols).set([0, 0, 0]);
+          const model = inst.modelAt(rows + cols);
+          Mat4.scale(model, text.width, text.height, 1);
+          Mat4.translate(
+            model,
+            (props.width - text.width) / 2,
+            (props.height - text.height) / 2,
+            100,
+          );
+        }
+
+        shaderSys?.resizeInstances(shader, inst.data);
+      });
+
+      updateProjection();
+    },
+  );
+
+  watchOnly([projection, instances], () => {
+    shaderSys?.draw();
   });
 
   return (
@@ -181,11 +164,8 @@ export default function Canvas(props: CanvasProps) {
         class="absolute left-0 top-0 p-2 bg-zinc-900/75 text-zinc-100 font-mono max-h-dvh overflow-auto"
         class:hidden={!dbg()}
       >
-        LnModel: <br />
-        {Mat4.toString(lineInstances().modelAt(instIdx))}
-        <br /> <br />
         QdModel: <br />
-        {Mat4.toString(quadInstances().modelAt(instIdx))}
+        {Mat4.toString(instances().modelAt(instIdx))}
         <br /> <br />
         Projection: <br />
         {Mat4.toString(projection())}
@@ -193,3 +173,6 @@ export default function Canvas(props: CanvasProps) {
     </>
   );
 }
+
+const CELL_W = 100;
+const CELL_H = 30;
