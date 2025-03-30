@@ -1,24 +1,9 @@
 import { ref, watch } from "jsx";
-import Canvas from "./Canvas";
+import Canvas, { contentWidth, contentHeight } from "./Canvas";
 
 const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,
 );
-const [contentWidth, setContentWidth] = ref(0);
-const [contentHeight, setContentHeight] = ref(0);
-
-let content!: HTMLElement;
-
-queueMicrotask(() => {
-  const observer = new ResizeObserver(([e]) => {
-    const w = e.borderBoxSize[0].inlineSize;
-    const h = e.borderBoxSize[0].blockSize;
-    if (contentWidth() !== w) setContentWidth(w);
-    if (contentHeight() !== h) setContentHeight(h);
-  });
-
-  observer.observe(content);
-});
 
 watch(() => {
   document.documentElement.classList[prefersDark() ? "add" : "remove"]("dark");
@@ -38,8 +23,6 @@ document.body.append(
         | {contentWidth()} {contentHeight()}
       </span>
     </header>
-    <article $ref={content} class:overflow-hidden>
-      <Canvas width={contentWidth()} height={contentHeight()} />
-    </article>
+    <Canvas />
   </main>,
 );

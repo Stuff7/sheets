@@ -4,6 +4,7 @@ import {
   INST_STRIDE,
   VERT_STRIDE,
 } from "./instance";
+import { aligned2 } from "./math";
 import { loadTextureAtlas } from "./texture";
 
 export function compileShader(
@@ -124,10 +125,6 @@ export type ShaderSystem = {
   resizeInstances(shader: Shader, instances: Float32Array): void;
 };
 
-function aligned(v: number, alignment: number): number {
-  return (v + (alignment - 1)) & ~(alignment - 1);
-}
-
 export async function initShaderSystem(
   canvas: HTMLCanvasElement,
   vert: string,
@@ -151,8 +148,8 @@ export async function initShaderSystem(
       let indexBufSize = 0;
 
       for (const data of shaders) {
-        staticBufSize = aligned(staticBufSize + data.vertex.byteLength, 16);
-        indexBufSize = aligned(indexBufSize + data.index.byteLength, 16);
+        staticBufSize = aligned2(staticBufSize + data.vertex.byteLength, 16);
+        indexBufSize = aligned2(indexBufSize + data.index.byteLength, 16);
       }
 
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.staticBuf);
@@ -266,8 +263,11 @@ export async function initShaderSystem(
         );
         this.gl.vertexAttribDivisor(this.inputs.uv, 1);
 
-        staticBufOffset = aligned(staticBufOffset + data.vertex.byteLength, 16);
-        indexBufOffset = aligned(indexBufOffset + data.index.byteLength, 16);
+        staticBufOffset = aligned2(
+          staticBufOffset + data.vertex.byteLength,
+          16,
+        );
+        indexBufOffset = aligned2(indexBufOffset + data.index.byteLength, 16);
 
         return shader;
       });

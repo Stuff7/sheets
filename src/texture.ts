@@ -119,9 +119,12 @@ export function loadTextureAtlas(gl: WebGL2RenderingContext) {
 const [atlasCanvas, atlasCtx] = createCanvas2d();
 
 export type Atlas = {
-  uvCoords: Float32Array;
-  dimensions: { width: number; height: number }[];
+  uvCoords: Record<string, Float32Array>;
+  width: number;
+  height: number;
 };
+
+export type TileMap = Record<string, HTMLImageElement>;
 type Node = { x: number; y: number; width: number };
 type Placement = { x: number; y: number; width: number; height: number };
 
@@ -208,28 +211,25 @@ function addSkylineLevel(
 function updateAtlasData(
   atlas: Atlas,
   placements: Placement[],
+  keys: string[],
   images: HTMLImageElement[],
 ) {
   const uvCoords = new Float32Array(images.length * 4);
-  const dimensions: { width: number; height: number }[] = new Array(
-    images.length,
-  );
 
   for (let i = 0; i < images.length; i++) {
     const p = placements[i];
     const u0 = p.x / atlasCanvas.width;
-    const v0 = (p.y + p.height) / atlasCanvas.height; // Flip V correctly
+    const v0 = p.y / atlasCanvas.height;
     const u1 = (p.x + p.width) / atlasCanvas.width;
-    const v1 = p.y / atlasCanvas.height; // Flip V correctly
+    const v1 = (p.y + p.height) / atlasCanvas.height;
     uvCoords.set([u0, v0, u1, v1], i * 4);
-    dimensions[i] = { width: p.width, height: p.height };
+    atlas.uvCoords[keys[i]] = uvCoords.subarray(i * 4, i * 4 + 4);
   }
-
-  atlas.uvCoords = uvCoords;
-  atlas.dimensions = dimensions;
 }
 
-export function createTextureAtlas(images: HTMLImageElement[]): Atlas {
+export function createTextureAtlas(tiles: TileMap): Atlas {
+  const images = Object.values(tiles);
+
   const totalArea = images.reduce(
     (sum, img) => sum + img.width * img.height,
     0,
@@ -304,10 +304,11 @@ export function createTextureAtlas(images: HTMLImageElement[]): Atlas {
   }
 
   const atlas: Atlas = {
-    uvCoords: new Float32Array(0),
-    dimensions: [],
+    uvCoords: {},
+    width: atlasCanvas.width,
+    height: atlasCanvas.height,
   };
 
-  updateAtlasData(atlas, placements, images);
+  updateAtlasData(atlas, placements, Object.keys(tiles), images);
   return atlas;
 }

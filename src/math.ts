@@ -132,3 +132,11 @@ export const Vec = {
     return result.trim();
   },
 };
+
+export function aligned2(v: number, alignment: number): number {
+  return (v + (alignment - 1)) & ~(alignment - 1);
+}
+
+export function aligned(v: number, alignment: number): number {
+  return Math.floor(v / alignment) * alignment;
+}

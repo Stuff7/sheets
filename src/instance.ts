@@ -18,7 +18,7 @@ export type Instances = {
 function initData(data: Float32Array, len: number) {
   for (let i = 0; i < len * NUM_INST_ATTRS; i += NUM_INST_ATTRS) {
     data.set(Mat4.identity(), i);
-    data.set([0, 1, 1, 0], i + 20);
+    data.set([0, 0, 1, 1], i + 20);
   }
 }
 

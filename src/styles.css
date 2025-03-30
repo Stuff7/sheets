@@ -52,7 +52,13 @@ i,
   text-align: center;
 }
 
-input:focus {
-  outline-style: dashed;
-  outline-width: 1.5px;
+input {
+  background: #111;
+  color: white;
+  outline: 1.5px solid;
+
+  &:focus {
+    outline-color: var(--color-emerald-500);
+    outline-style: dashed;
+  }
 }
