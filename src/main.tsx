@@ -1,13 +1,10 @@
-import { ref, watch } from "jsx";
-import Canvas, { contentWidth, contentHeight } from "./Canvas";
-
-const [prefersDark, setPrefersDark] = ref(
-  matchMedia("(prefers-color-scheme: dark)").matches,
-);
-
-watch(() => {
-  document.documentElement.classList[prefersDark() ? "add" : "remove"]("dark");
-});
+import Canvas from "./Canvas";
+import {
+  prefersDark,
+  setPrefersDark,
+  canvasWidth,
+  canvasHeight,
+} from "./state";
 
 document.body.append(
   <main class="grid grid-rows-[auto_1fr] w-full h-full">
@@ -20,7 +17,7 @@ document.body.append(
         <em>
           Press <strong>?</strong> for dbg info
         </em>{" "}
-        | {contentWidth()} {contentHeight()}
+        | {canvasWidth()} {canvasHeight()}
       </span>
     </header>
     <Canvas />

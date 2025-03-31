@@ -1,4 +1,11 @@
-import { ref, watchOnly } from "jsx";
+import { ref, watch, watchOnly } from "jsx";
+import {
+  canvasWidth,
+  canvasHeight,
+  setCanvasWidth,
+  setCanvasHeight,
+  prefersDark,
+} from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
 import { aligned, Mat4 } from "./math";
 import {
@@ -10,12 +17,8 @@ import {
 } from "./texture";
 import { initInstances, QUAD_MESH, type Instances } from "./instance";
 
-const SCROLL_SPEED = 200; // Less is faster
 const CELL_W = 100;
 const CELL_H = 30;
-
-export const [contentWidth, setContentWidth] = ref(0);
-export const [contentHeight, setContentHeight] = ref(0);
 
 type CellMap = Record<
   number,
@@ -41,8 +44,8 @@ export default function Canvas() {
     const observer = new ResizeObserver(([e]) => {
       const w = e.borderBoxSize[0].inlineSize;
       const h = e.borderBoxSize[0].blockSize;
-      if (contentWidth() !== w) setContentWidth(w);
-      if (contentHeight() !== h) setContentHeight(h);
+      if (canvasWidth() !== w) setCanvasWidth(w);
+      if (canvasHeight() !== h) setCanvasHeight(h);
     });
 
     observer.observe(content);
@@ -71,11 +74,11 @@ export default function Canvas() {
     setCells.byRefAsync(async (c) => {
       const hasKey = value in tiles;
 
-      tiles[value] =
-        tiles[value] ??
-        (await renderTextToImage(value, {
+      if (!tiles[value]) {
+        tiles[value] = await renderTextToImage(value, {
           font: "16px mono",
-        }));
+        });
+      }
 
       c[Object.keys(c).length] = {
         text: value,
@@ -130,12 +133,21 @@ export default function Canvas() {
 
     shaderSys.gl.clear(shaderSys.gl.COLOR_BUFFER_BIT);
 
-    canvas.width = contentWidth();
-    canvas.height = contentHeight();
-    shaderSys.gl.viewport(0, 0, contentWidth(), contentHeight());
+    canvas.width = canvasWidth();
+    canvas.height = canvasHeight();
+    shaderSys.gl.viewport(0, 0, canvasWidth(), canvasHeight());
 
     setProjection.byRef((proj) => {
-      Mat4.ortho(0, contentWidth(), contentHeight(), 0, -1, 1000, proj);
+      Mat4.ortho(0, canvasWidth(), canvasHeight(), 0, -1, 1000, proj);
+      const s = scroll();
+      if (s.x || s.y) {
+        Mat4.translateTo(
+          proj,
+          -1 - s.x / canvasWidth(),
+          1 + s.y / canvasHeight(),
+          0,
+        );
+      }
       shaderSys.gl.uniformMatrix4fv(shaderSys.inputs.projection, false, proj);
     });
   }
@@ -149,30 +161,45 @@ export default function Canvas() {
     cellInput.focus();
   }
 
-  watchOnly([contentWidth, contentHeight, cells], (v) => {
-    const rows = Math.ceil(contentWidth() / CELL_W);
-    if (!rows) return;
-    const cols = Math.ceil(contentHeight() / CELL_H);
-    if (!cols) return;
+  watch(() => {
+    if (prefersDark()) {
+      shaderSys?.gl.clearColor(0.08, 0.08, 0.08, 1.0);
+    } else {
+      shaderSys?.gl.clearColor(0.8, 0.8, 0.8, 1.0);
+    }
+  });
+
+  watchOnly([canvasWidth, canvasHeight, cells, scroll], () => {
+    const padding = 3;
+
+    const w = canvasWidth() + padding * CELL_W;
+    const h = canvasHeight() + padding * 10 * CELL_H;
+
+    const cols = Math.ceil(w / CELL_W);
+    const rows = Math.ceil(h / CELL_H);
+
+    const offsetX = Math.floor(scroll().x / 200);
+    const offsetY = Math.floor(scroll().y / 60);
+    // console.log({ cols, rows, offsetX, offsetY });
 
     setInstances.byRef((inst) => {
       const numCells = Object.keys(cells()).length;
       inst.resize(rows + cols + numCells + 1);
 
-      for (let i = 0; i < rows; i++) {
+      for (let i = 0; i < cols; i++) {
         const model = inst.modelAt(i);
-        Mat4.scaleIdentity(model, 1, contentHeight(), 1);
-        Mat4.translateTo(model, i * CELL_W, 0, 0);
+        Mat4.scaleIdentity(model, 1, h, 1);
+        Mat4.translateTo(model, (i + offsetX) * CELL_W, offsetY * CELL_H, 0);
         inst.colorAt(i).set([1, 1, 1]);
         inst.hasUVAt(i)[0] = 0;
       }
 
-      for (let i = 0; i < cols; i++) {
-        const model = inst.modelAt(i + rows);
-        Mat4.scaleIdentity(model, contentWidth(), 1, 1);
-        Mat4.translateTo(model, 0, i * CELL_H, 0);
-        inst.colorAt(i + rows).set([1, 1, 1]);
-        inst.hasUVAt(i + rows)[0] = 0;
+      for (let i = 0; i < rows; i++) {
+        const model = inst.modelAt(i + cols);
+        Mat4.scaleIdentity(model, w, 1, 1);
+        Mat4.translateTo(model, offsetX * CELL_W, (i + offsetY) * CELL_H, 0);
+        inst.colorAt(i + cols).set([1, 1, 1]);
+        inst.hasUVAt(i + cols)[0] = 0;
       }
 
       let i = 0;
@@ -184,7 +211,7 @@ export default function Canvas() {
         inst.uvAt(rows + cols + i).set(uv);
         const model = inst.modelAt(rows + cols + i);
         Mat4.scaleIdentity(model, c.width, c.height, 1);
-        Mat4.translateTo(model, c.x, c.y, 100);
+        Mat4.translateTo(model, c.x + offsetX, c.y + offsetY, 100);
         i++;
       }
 
@@ -202,24 +229,20 @@ export default function Canvas() {
         shaderSys?.resizeInstances(shader, inst.data);
       }
     });
-
-    if (typeof v === "number") updateProjection();
   });
 
-  watchOnly([projection, instances], () => {
+  // watchOnly([prefersDark, projection, instances], () => {
+  //   shaderSys?.draw();
+  // });
+
+  function draw() {
     shaderSys?.draw();
-  });
+    requestAnimationFrame(draw);
+  }
+  draw();
 
-  watchOnly([scroll], () => {
-    setProjection.byRef((proj) => {
-      Mat4.translateTo(
-        proj,
-        -1 + scroll().x / SCROLL_SPEED,
-        1 + scroll().y / SCROLL_SPEED,
-        -1,
-      );
-      shaderSys?.gl.uniformMatrix4fv(shaderSys.inputs.projection, false, proj);
-    });
+  watchOnly([canvasWidth, canvasHeight, scroll], () => {
+    updateProjection();
   });
 
   return (
@@ -245,8 +268,8 @@ export default function Canvas() {
         Scroll: {scroll().x} {scroll().y}
       </pre>
       <div
-        class="overflow-y-auto absolute left-0 right-0 top-0 h-[calc(100dvh-var(--spacing)*10)]"
-        on:click={selectCell}
+        class="overflow-auto absolute left-0 right-0 top-0 h-full"
+        on:dblclick={selectCell}
         on:scroll={(ev) =>
           setScroll({
             x: ev.currentTarget.scrollLeft,
@@ -254,7 +277,10 @@ export default function Canvas() {
           })
         }
       >
-        <div class="w-full h-1000" />
+        <div
+          style:width={`${CELL_W * 1e5}px`}
+          style:height={`${CELL_H * 1e5}px`}
+        />
       </div>
     </article>
   );
