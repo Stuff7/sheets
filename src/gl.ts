@@ -114,8 +114,11 @@ export type ShaderSystem = {
   shaders: Shader[];
   staticBuf: WebGLBuffer;
   indexBuf: WebGLBuffer;
+  shouldRedraw: boolean;
 
+  requestRedraw(): void;
   draw(): void;
+  render(): void;
   initShaders(...shaders: ShaderData[]): Shader[];
   updateInstance(
     shader: Shader,
@@ -143,6 +146,7 @@ export async function initShaderSystem(
     shaders: [],
     staticBuf: result.gl.createBuffer(),
     indexBuf: result.gl.createBuffer(),
+    shouldRedraw: false,
     initShaders(...shaders) {
       let staticBufSize = 0;
       let indexBufSize = 0;
@@ -289,6 +293,9 @@ export async function initShaderSystem(
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, shader.buf);
       this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, shader.instanceData);
     },
+    requestRedraw() {
+      this.shouldRedraw = true;
+    },
     draw() {
       if (!this.gl) return;
 
@@ -304,6 +311,13 @@ export async function initShaderSystem(
           shader.instanceData.length / NUM_INST_ATTRS,
         );
       }
+    },
+    render() {
+      if (this.shouldRedraw) {
+        this.draw();
+        this.shouldRedraw = false;
+      }
+      requestAnimationFrame(this.render.bind(this));
     },
   } satisfies ShaderSystem;
 }

@@ -1,7 +1,6 @@
 import { watch, ref } from "jsx";
 
-export const [canvasWidth, setCanvasWidth] = ref(0);
-export const [canvasHeight, setCanvasHeight] = ref(0);
+export const [canvasRect, setCanvasRect] = ref(new DOMRect());
 
 export const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,

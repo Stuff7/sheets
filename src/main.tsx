@@ -1,10 +1,5 @@
 import Canvas from "./Canvas";
-import {
-  prefersDark,
-  setPrefersDark,
-  canvasWidth,
-  canvasHeight,
-} from "./state";
+import { prefersDark, setPrefersDark, canvasRect } from "./state";
 
 document.body.append(
   <main class="grid grid-rows-[auto_1fr] w-full h-full">
@@ -17,7 +12,7 @@ document.body.append(
         <em>
           Press <strong>?</strong> for dbg info
         </em>{" "}
-        | {canvasWidth()} {canvasHeight()}
+        | {canvasRect().width.toFixed(2)} {canvasRect().height.toFixed(2)}
       </span>
     </header>
     <Canvas />

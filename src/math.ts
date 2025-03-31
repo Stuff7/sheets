@@ -53,10 +53,18 @@ export const Mat4 = {
     m4[14] += tz;
   },
 
+  translatePx(m4: Float32Array, tx: number, ty: number, tz: number) {
+    return Mat4.translate(m4, tx * m4[0], ty * m4[5], tz * m4[10]);
+  },
+
   translateTo(m4: Float32Array, tx: number, ty: number, tz: number) {
     m4[12] = tx;
     m4[13] = ty;
     m4[14] = tz;
+  },
+
+  translatePxTo(m4: Float32Array, tx: number, ty: number, tz: number) {
+    return Mat4.translateTo(m4, tx * m4[0], ty * m4[5], tz * m4[10]);
   },
 
   scaleIdentity(m4: Float32Array, sx: number, sy: number, sz: number) {
@@ -139,4 +147,36 @@ export function aligned2(v: number, alignment: number): number {
 
 export function aligned(v: number, alignment: number): number {
   return Math.floor(v / alignment) * alignment;
+}
+
+export function getMousePosition(ev: MouseEvent | TouchEvent) {
+  let clientX: number;
+  let clientY: number;
+
+  if (ev instanceof MouseEvent) {
+    clientX = ev.clientX;
+    clientY = ev.clientY;
+  } else if (ev instanceof TouchEvent && ev.touches.length > 0) {
+    clientX = ev.touches[0].clientX;
+    clientY = ev.touches[0].clientY;
+  } else {
+    return { x: -1, y: -1 };
+  }
+
+  return { x: clientX, y: clientY };
+}
+
+export function getRelativeMousePosition(ev: MouseEvent | TouchEvent) {
+  const element = ev.currentTarget as HTMLElement;
+  const rect = element.getBoundingClientRect();
+  const clientPos = getMousePosition(ev);
+
+  if (clientPos.x === -1 && clientPos.y === -1) {
+    return clientPos;
+  }
+
+  const x = clientPos.x - rect.left;
+  const y = clientPos.y - rect.top;
+
+  return { x, y };
 }
