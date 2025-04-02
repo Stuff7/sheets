@@ -3,7 +3,7 @@ import For from "jsx/components/For";
 import Dbg from "./Dbg";
 import { canvasRect, setCanvasRect, prefersDark } from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
-import { aligned, asciiNumParser, getMousePosition } from "./utils";
+import { aligned } from "./utils";
 import { Mat4 } from "./math";
 import {
   type Atlas,
@@ -12,12 +12,13 @@ import {
   loadTextureAtlas,
   renderTextToImage,
 } from "./texture";
-import { initInstances, QUAD_MESH, type Instances } from "./instance";
-
-const MAX_COLS = 1e5;
-const MAX_ROWS = 2e5;
-const CELL_W = 100;
-const CELL_H = 30;
+import { initInstances, QUAD_MESH } from "./instance";
+import GridControls, {
+  CELL_W,
+  CELL_H,
+  toAlphaLower,
+  toAlphaUpper,
+} from "./GridControls";
 
 const COLOR_GRID_LINE_DARK = [0.25, 0.25, 0.27] as const; // zinc-700 #3f3f46
 const COLOR_GRID_LINE_LIGHT = [0.89, 0.89, 0.91] as const; // zinc-200 #e4e4e7
@@ -30,25 +31,20 @@ const CELL_HEADER_LIGHT =
   "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 active:bg-indigo-900 hover:text-zinc-200";
 const CELL_HEADER_STYLE = `border min-w-[56.5px] ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
 
-const [toAlphaUpper] = asciiNumParser(26, "A".charCodeAt(0));
-const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
-
 type CellMap = Record<
   number,
   { text: string; width: number; height: number; x: number; y: number }
 >;
 
-export default function Canvas() {
+export default function Grid() {
   let canvas!: HTMLCanvasElement;
   let shaderSys!: ShaderSystem;
   let shader!: Shader;
   let atlas: Atlas;
-  let cellInput!: HTMLInputElement;
 
   const tiles: TileMap = {};
   const [scroll, setScroll] = ref({ x: 0, y: 0 });
   const [cells, setCells] = ref<CellMap>({});
-  const [dbg, setDbg] = ref(false);
   const [projection, setProjection] = ref(Mat4.identity());
   const [instances, setInstances] = ref(initInstances(10));
 
@@ -81,7 +77,7 @@ export default function Canvas() {
 
   function addText(value: string) {
     if (!value) return;
-    setCells.byRefAsync(async (c) => {
+    setCells.byRefAsync(async () => {
       const hasKey = value in tiles;
 
       if (!tiles[value]) {
@@ -90,13 +86,14 @@ export default function Canvas() {
         });
       }
 
-      c[selectedCell().idx] = {
-        text: value,
-        width: tiles[value].width,
-        height: tiles[value].height,
-        x: cellPos().x,
-        y: cellPos().y,
-      };
+      // TODO Multiple selection
+      // c[selectedCell().idx] = {
+      //   text: value,
+      //   width: tiles[value].width,
+      //   height: tiles[value].height,
+      //   x: cellPos().x,
+      //   y: cellPos().y,
+      // };
 
       if (hasKey) return;
 
@@ -104,38 +101,6 @@ export default function Canvas() {
       console.log(JSON.stringify(atlas, null, 1));
       loadTextureAtlas(shaderSys.gl);
     });
-  }
-
-  let instIdx = 0;
-  function translateInstance(
-    inst: Instances,
-    tx: number,
-    ty: number,
-    tz: number,
-  ) {
-    const model = inst.modelAt(instIdx);
-    Mat4.translate(model, tx, ty, tz);
-    shaderSys.updateInstance(shader, instIdx, model);
-  }
-
-  function keyListener(ev: KeyboardEvent) {
-    const k = ev.key.toUpperCase();
-    const speed = 10;
-
-    if (k === "W") {
-      setInstances.byRef((inst) => translateInstance(inst, 0, speed, 0));
-    } else if (k === "A") {
-      setInstances.byRef((inst) => translateInstance(inst, -speed, 0, 0));
-    } else if (k === "S") {
-      setInstances.byRef((inst) => translateInstance(inst, 0, -speed, 0));
-    } else if (k === "D") {
-      setInstances.byRef((inst) => translateInstance(inst, speed, 0, 0));
-    } else if (k === "?") {
-      setDbg(!dbg());
-    } else {
-      const n = Number.parseInt(k, 10);
-      if (!Number.isNaN(n)) instIdx = n;
-    }
   }
 
   function updateProjection() {
@@ -156,34 +121,6 @@ export default function Canvas() {
       }
       shaderSys.gl.uniformMatrix4fv(shaderSys.inputs.projection, false, proj);
     });
-  }
-
-  const [cellPos, setCellPos] = ref({ x: 0, y: 0 });
-  const [selectedCell, setSelectedCell] = ref({
-    col: 0,
-    row: 0,
-    idx: 0,
-    id: "Aa",
-  });
-  function selectCell(ev: MouseEvent) {
-    const cursor = getMousePosition(ev);
-    const x = scroll().x % CELL_W;
-    const y = scroll().y % CELL_H;
-    const { x: offsetX, y: offsetY } = canvasRect();
-
-    setCellPos.byRef((pos) => {
-      pos.x = aligned(cursor.x + x - offsetX, CELL_W) - x + offsetX;
-      pos.y = aligned(cursor.y + y - offsetY, CELL_H) - y + offsetY;
-    });
-
-    setSelectedCell.byRef((c) => {
-      c.col = Math.floor((cursor.x + scroll().x - offsetX) / CELL_W);
-      c.row = Math.floor((cursor.y + scroll().y - offsetY) / CELL_H);
-      c.idx = c.row * MAX_COLS + c.col;
-      c.id = `${toAlphaUpper(c.col)}${toAlphaLower(c.row)}`;
-    });
-
-    cellInput.focus();
   }
 
   watch(() => {
@@ -285,9 +222,7 @@ export default function Canvas() {
     shaderSys?.requestRedraw();
   });
 
-  watchOnly([canvasRect, scroll], () => {
-    updateProjection();
-  });
+  watchOnly([canvasRect, scroll], () => updateProjection());
 
   return (
     <article class="font-mono overflow-hidden max-w-dvw max-h-dvh grid grid-rows-[auto_minmax(0,1fr)] grid-cols-[max-content_minmax(0,1fr)]">
@@ -326,48 +261,21 @@ export default function Canvas() {
           )}
         />
       </aside>
-      <canvas $ref={canvas} g:onkeydown={keyListener} class="w-full h-full" />
-      <label
-        class="absolute not-has-focus:opacity-0 z-10 h-8 w-25"
-        style:left={`${cellPos().x}px`}
-        style:top={`${cellPos().y}px`}
-      >
-        <input
-          $ref={cellInput}
-          class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
-          on:change={(e) => addText(e.currentTarget.value)}
-        />
-        <strong class="absolute -top-7 -left-1 p-1">{selectedCell().id}</strong>
-      </label>
-      <div
-        class="overflow-auto absolute right-0 bottom-0"
-        style:width={`${canvasRect().width}px`}
-        style:height={`${canvasRect().height}px`}
-        on:dblclick={selectCell}
-        on:scroll={(ev) =>
-          setScroll({
-            x: ev.currentTarget.scrollLeft,
-            y: ev.currentTarget.scrollTop,
-          })
-        }
-      >
-        <div
-          style:width={`${CELL_W * MAX_COLS}px`}
-          style:height={`${CELL_H * MAX_ROWS}px`}
-        />
-      </div>
-      <Dbg open={dbg()} x={100} y={100} draggable onclose={setDbg}>
-        Model: <br />
-        {Mat4.toString(instances().modelAt(instIdx))}
-        <br /> <br />
-        Projection: <br />
-        {Mat4.toString(projection())}
-        <br /> <br />
-        Selected: {JSON.stringify(selectedCell())}
-        <br /> <br />
-        Cells: {JSON.stringify(cells())}
-        <br /> <br />
-        Scroll: {scroll().x} {scroll().y}
+      <GridControls
+        onCellInput={addText}
+        scroll={scroll()}
+        onScroll={setScroll}
+      />
+      <canvas $ref={canvas} class="w-full h-full" />
+      <Dbg>
+        <p>
+          Projection: <br />
+          {Mat4.toString(projection())}
+        </p>
+        <p>Cells: {JSON.stringify(cells())}</p>
+        <p>
+          Scroll: {scroll().x} {scroll().y}
+        </p>
       </Dbg>
     </article>
   );

@@ -1,16 +1,17 @@
 import { reactive, ref } from "jsx";
+import Portal from "jsx/components/Portal";
 import { getMousePosition } from "./utils";
 
 type DbgProps = {
   open: boolean;
   title?: string;
-  onclose: (close: false) => void;
+  onClose: (close: false) => void;
   draggable?: boolean;
   x: number;
   y: number;
 };
 
-export default function Dbg(props: DbgProps) {
+export function DbgDialog(props: DbgProps) {
   // biome-ignore lint/suspicious/noConfusingLabels:
   // biome-ignore lint/correctness/noUnusedLabels:
   DEV: {
@@ -63,9 +64,9 @@ export default function Dbg(props: DbgProps) {
     }
 
     return (
-      <pre
+      <dialog
+        $open={props.open}
         class="absolute border-2 border-slate-900 dark:border-emerald-300 rounded-md whitespace-break-spaces max-w-3/4 max-h-3/4 left-0 top-0 z-100 bg-zinc-100/75 text-zinc-900 dark:bg-zinc-900/75 dark:text-zinc-100 font-mono overflow-auto"
-        class:hidden={!props.open}
         style:left={`${cursor.x}px`}
         style:top={`${cursor.y}px`}
         g:ontouchmove={drag}
@@ -84,15 +85,25 @@ export default function Dbg(props: DbgProps) {
           <button
             type="button"
             class="hover:scale-150 transition-transform"
-            on:click={() => props.onclose(false)}
+            on:click={() => props.onClose(false)}
           >
             <i></i>
           </button>
         </header>
-        <article class:p-2>
+        <article data-dbg class:p-2>
           <slot />
         </article>
-      </pre>
+      </dialog>
     );
   }
+}
+
+export default function Dbg() {
+  return (
+    <Portal to="[data-dbg]">
+      <pre>
+        <slot />
+      </pre>
+    </Portal>
+  );
 }
