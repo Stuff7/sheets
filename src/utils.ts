@@ -1,3 +1,11 @@
+export type Tuple<
+  T,
+  N extends number,
+  R extends T[] = [],
+> = R["length"] extends N ? R : Tuple<T, N, [...R, T]>;
+
+export type Color = Tuple<number, 3>;
+
 export function aligned2(v: number, alignment: number): number {
   return (v + (alignment - 1)) & ~(alignment - 1);
 }

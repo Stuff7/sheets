@@ -3,7 +3,7 @@ import For from "jsx/components/For";
 import Dbg from "./Dbg";
 import { canvasRect, setCanvasRect, prefersDark } from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
-import { aligned } from "./utils";
+import { aligned, type Color } from "./utils";
 import { Mat4 } from "./math";
 import {
   type Atlas,
@@ -20,10 +20,10 @@ import GridControls, {
   toAlphaUpper,
 } from "./GridControls";
 
-const COLOR_GRID_LINE_DARK = [0.25, 0.25, 0.27] as const; // zinc-700 #3f3f46
-const COLOR_GRID_LINE_LIGHT = [0.89, 0.89, 0.91] as const; // zinc-200 #e4e4e7
-const COLOR_CELL_DARK = [0.09, 0.09, 0.11] as const; // zinc-900 #18181b
-const COLOR_CELL_LIGHT = [0.98, 0.98, 0.98] as const; // zinc-50 #fafafa
+const COLOR_GRID_LINE_DARK: Color = [0.25, 0.25, 0.27]; // zinc-700 #3f3f46
+const COLOR_GRID_LINE_LIGHT: Color = [0.89, 0.89, 0.91]; // zinc-200 #e4e4e7
+const COLOR_CELL_DARK: Color = [0.09, 0.09, 0.11]; // zinc-900 #18181b
+const COLOR_CELL_LIGHT: Color = [0.98, 0.98, 0.98]; // zinc-50 #fafafa
 
 const CELL_HEADER_DARK =
   "dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-emerald-400 dark:active:bg-emerald-100 dark:hover:text-zinc-800";
@@ -31,10 +31,15 @@ const CELL_HEADER_LIGHT =
   "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 active:bg-indigo-900 hover:text-zinc-200";
 const CELL_HEADER_STYLE = `border min-w-[56.5px] ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
 
-type CellMap = Record<
-  number,
-  { text: string; width: number; height: number; x: number; y: number }
->;
+type Cell = {
+  text: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+};
+
+type CellMap = Record<number, Cell>;
 
 export default function Grid() {
   let canvas!: HTMLCanvasElement;
@@ -75,31 +80,48 @@ export default function Grid() {
     shaderSys.render();
   });
 
-  function addText(value: string) {
+  async function addText(idx: number, value: string) {
     if (!value) return;
-    setCells.byRefAsync(async () => {
-      const hasKey = value in tiles;
+    const hasKey = value in tiles;
 
-      if (!tiles[value]) {
-        tiles[value] = await renderTextToImage(value, {
-          font: "16px mono",
-        });
+    if (!tiles[value]) {
+      tiles[value] = await renderTextToImage(value, {
+        font: "16px mono",
+      });
+    }
+
+    if (hasKey) return;
+
+    atlas = createTextureAtlas(tiles);
+    loadTextureAtlas(shaderSys.gl);
+
+    setCell(idx, (c) => {
+      c.text = value;
+      c.width = tiles[value].width;
+      c.height = tiles[value].height;
+    });
+  }
+
+  function selectCell(idx: number, x: number, y: number) {
+    setCell(idx, (c) => {
+      c.x = x;
+      c.y = y;
+    });
+  }
+
+  function setCell(idx: number, cb: (c: Cell) => void) {
+    setCells.byRef((c) => {
+      if (!c[idx]) {
+        c[idx] = {
+          text: "",
+          width: CELL_W,
+          height: CELL_H,
+          x: 0,
+          y: 0,
+        };
       }
 
-      // TODO Multiple selection
-      // c[selectedCell().idx] = {
-      //   text: value,
-      //   width: tiles[value].width,
-      //   height: tiles[value].height,
-      //   x: cellPos().x,
-      //   y: cellPos().y,
-      // };
-
-      if (hasKey) return;
-
-      atlas = createTextureAtlas(tiles);
-      console.log(JSON.stringify(atlas, null, 1));
-      loadTextureAtlas(shaderSys.gl);
+      cb(c[idx]);
     });
   }
 
@@ -144,8 +166,10 @@ export default function Grid() {
     const cols = Math.ceil(w / CELL_W);
     const rows = Math.ceil(h / CELL_H);
 
+    const colOffset = Math.floor(scroll().x / CELL_W);
+    const rowOffset = Math.floor(scroll().y / CELL_H);
+
     setCellKeys.byRef((k) => {
-      const colOffset = Math.floor(scroll().x / CELL_W);
       k.cols.length = 0;
       for (let i = colOffset; i < cols + colOffset; i++) {
         const idx = k.cols.length;
@@ -153,7 +177,6 @@ export default function Grid() {
         k.cols[idx] += `${toAlphaUpper(i)} `;
       }
 
-      const rowOffset = Math.floor(scroll().y / CELL_H);
       k.rows.length = 0;
       for (let i = rowOffset; i < rows + rowOffset; i++) {
         const idx = k.rows.length;
@@ -162,10 +185,13 @@ export default function Grid() {
       }
     });
 
-    const lineColor = prefersDark()
-      ? COLOR_GRID_LINE_DARK
-      : COLOR_GRID_LINE_LIGHT;
-    const cellColor = prefersDark() ? COLOR_CELL_DARK : COLOR_CELL_LIGHT;
+    let lineColor = COLOR_GRID_LINE_DARK;
+    let cellColor = COLOR_CELL_DARK;
+    if (!prefersDark()) {
+      lineColor = COLOR_GRID_LINE_LIGHT;
+      cellColor = COLOR_CELL_LIGHT;
+    }
+
     const offsetX = aligned(scroll().x, CELL_W);
     const offsetY = aligned(scroll().y, CELL_H);
 
@@ -192,24 +218,26 @@ export default function Grid() {
       let i = 0;
       for (const k in cells()) {
         const c = cells()[k];
-        const uv = atlas.uvCoords[c.text];
-        inst.hasUVAt(rows + cols + i)[0] = 1;
-        inst.colorAt(rows + cols + i).set(cellColor);
-        inst.uvAt(rows + cols + i).set(uv);
+        const idx = rows + cols + i;
+
+        if (c.text) {
+          const uv = atlas.uvCoords[c.text];
+          inst.uvAt(idx).set(uv);
+          inst.hasUVAt(idx)[0] = 1;
+          inst.colorAt(idx).set(cellColor);
+        } else {
+          inst.hasUVAt(idx)[0] = 0;
+          inst.colorAt(idx).set([1, 1, 0]);
+        }
+
         const model = inst.modelAt(rows + cols + i);
         Mat4.scaleIdentity(model, c.width, c.height, 1);
-        Mat4.translateTo(model, c.x + offsetX, c.y + offsetY, 100);
-        i++;
-      }
 
-      if (atlas) {
-        const i = numCells;
-        inst.hasUVAt(rows + cols + i)[0] = 1;
-        inst.colorAt(rows + cols + i).set(cellColor);
-        inst.uvAt(rows + cols + i).set([0, 0, 1, 1]);
-        const model = inst.modelAt(rows + cols + i);
-        Mat4.scaleIdentity(model, atlas.width, atlas.height, 1);
-        Mat4.translateTo(model, 0, 0, 100);
+        const { x: offsetX, y: offsetY } = canvasRect();
+        const px = aligned(c.x - offsetX, CELL_W);
+        const py = aligned(c.y - offsetY, CELL_H);
+        Mat4.translateTo(model, px, py, 100);
+        i++;
       }
 
       if (shader && shaderSys) {
@@ -263,6 +291,7 @@ export default function Grid() {
       </aside>
       <GridControls
         onCellInput={addText}
+        onCellClick={selectCell}
         scroll={scroll()}
         onScroll={setScroll}
       />

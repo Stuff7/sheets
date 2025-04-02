@@ -12,7 +12,8 @@ export const [toAlphaUpper] = asciiNumParser(26, "A".charCodeAt(0));
 export const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
 
 type GridControlsProps = {
-  onCellInput: (text: string) => void;
+  onCellInput: (idx: number, text: string) => void;
+  onCellClick: (idx: number, x: number, y: number) => void;
   scroll: { x: number; y: number };
   onScroll: (scroll: { x: number; y: number }) => void;
 };
@@ -45,6 +46,11 @@ export default function GridControls(props: GridControlsProps) {
       c.row = Math.floor((cursor.y + props.scroll.y - offsetY) / CELL_H);
       c.idx = c.row * MAX_COLS + c.col;
       c.id = `${toAlphaUpper(c.col)}${toAlphaLower(c.row)}`;
+      props.onCellClick(
+        c.idx,
+        cursor.x + props.scroll.x,
+        cursor.y + props.scroll.y,
+      );
     });
   }
 
@@ -80,7 +86,9 @@ export default function GridControls(props: GridControlsProps) {
         <input
           $ref={cellInput}
           class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
-          on:change={(e) => props.onCellInput(e.currentTarget.value)}
+          on:change={(e) =>
+            props.onCellInput(selectedCell().idx, e.currentTarget.value)
+          }
         />
         <strong class="absolute -top-7 -left-1 p-1">{selectedCell().id}</strong>
       </label>
