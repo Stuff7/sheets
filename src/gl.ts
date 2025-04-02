@@ -4,7 +4,7 @@ import {
   INST_STRIDE,
   VERT_STRIDE,
 } from "./instance";
-import { aligned2 } from "./math";
+import { aligned2 } from "./utils";
 import { loadTextureAtlas } from "./texture";
 
 export function compileShader(

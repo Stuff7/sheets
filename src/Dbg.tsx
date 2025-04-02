@@ -1,8 +1,10 @@
 import { reactive, ref } from "jsx";
-import { getMousePosition } from "./math";
+import { getMousePosition } from "./utils";
 
 type DbgProps = {
   open: boolean;
+  title?: string;
+  onclose: (close: false) => void;
   draggable?: boolean;
   x: number;
   y: number;
@@ -72,13 +74,20 @@ export default function Dbg(props: DbgProps) {
         g:onmouseup={stopDrag}
       >
         <header
-          class="p-2 bg-slate-900 text-zinc-50 dark:bg-emerald-300 dark:text-zinc-900"
+          class="flex justify-between p-2 bg-slate-900 text-zinc-50 dark:bg-emerald-300 dark:text-zinc-900"
           class:cursor-grab={!dragging()}
           class:cursor-grabbing={dragging()}
           on:mousedown={startDrag}
           on:touchstart={startDrag}
         >
-          Dbg
+          <h1 class="text-lg font-bold">{props.title ?? "Dbg"}</h1>
+          <button
+            type="button"
+            class="hover:scale-150 transition-transform"
+            on:click={() => props.onclose(false)}
+          >
+            <i></i>
+          </button>
         </header>
         <article class:p-2>
           <slot />

@@ -3,7 +3,8 @@ import For from "jsx/components/For";
 import Dbg from "./Dbg";
 import { canvasRect, setCanvasRect, prefersDark } from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
-import { aligned, getMousePosition, Mat4 } from "./math";
+import { aligned, asciiNumParser, getMousePosition } from "./utils";
+import { Mat4 } from "./math";
 import {
   type Atlas,
   type TileMap,
@@ -24,10 +25,13 @@ const COLOR_CELL_DARK = [0.09, 0.09, 0.11] as const; // zinc-900 #18181b
 const COLOR_CELL_LIGHT = [0.98, 0.98, 0.98] as const; // zinc-50 #fafafa
 
 const CELL_HEADER_DARK =
-  "dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-emerald-400 dark:hover:text-zinc-800";
+  "dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-emerald-400 dark:active:bg-emerald-100 dark:hover:text-zinc-800";
 const CELL_HEADER_LIGHT =
-  "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 hover:text-zinc-200";
-const CELL_HEADER_STYLE = `border ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
+  "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 active:bg-indigo-900 hover:text-zinc-200";
+const CELL_HEADER_STYLE = `border min-w-[56.5px] ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
+
+const [toAlphaUpper] = asciiNumParser(26, "A".charCodeAt(0));
+const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
 
 type CellMap = Record<
   number,
@@ -159,7 +163,7 @@ export default function Canvas() {
     col: 0,
     row: 0,
     idx: 0,
-    id: "1.1",
+    id: "Aa",
   });
   function selectCell(ev: MouseEvent) {
     const cursor = getMousePosition(ev);
@@ -176,7 +180,7 @@ export default function Canvas() {
       c.col = Math.floor((cursor.x + scroll().x - offsetX) / CELL_W);
       c.row = Math.floor((cursor.y + scroll().y - offsetY) / CELL_H);
       c.idx = c.row * MAX_COLS + c.col;
-      c.id = `${(c.col + 1).toString(36).toUpperCase()}.${(c.row + 1).toString(36).toUpperCase()}`;
+      c.id = `${toAlphaUpper(c.col)}${toAlphaLower(c.row)}`;
     });
 
     cellInput.focus();
@@ -204,20 +208,20 @@ export default function Canvas() {
     const rows = Math.ceil(h / CELL_H);
 
     setCellKeys.byRef((k) => {
-      const colOffset = Math.floor(scroll().x / CELL_W) + 1;
+      const colOffset = Math.floor(scroll().x / CELL_W);
       k.cols.length = 0;
       for (let i = colOffset; i < cols + colOffset; i++) {
         const idx = k.cols.length;
         k.cols.push("");
-        k.cols[idx] += `${i.toString(36).toUpperCase()} `;
+        k.cols[idx] += `${toAlphaUpper(i)} `;
       }
 
-      const rowOffset = Math.floor(scroll().y / CELL_H) + 1;
+      const rowOffset = Math.floor(scroll().y / CELL_H);
       k.rows.length = 0;
       for (let i = rowOffset; i < rows + rowOffset; i++) {
         const idx = k.rows.length;
         k.rows.push("");
-        k.rows[idx] += `${i.toString(36).toUpperCase()} `;
+        k.rows[idx] += `${toAlphaLower(i)} `;
       }
     });
 
@@ -352,7 +356,7 @@ export default function Canvas() {
           style:height={`${CELL_H * MAX_ROWS}px`}
         />
       </div>
-      <Dbg open={dbg()} x={0} y={0} draggable>
+      <Dbg open={dbg()} x={100} y={100} draggable onclose={setDbg}>
         Model: <br />
         {Mat4.toString(instances().modelAt(instIdx))}
         <br /> <br />
