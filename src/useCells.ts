@@ -1,11 +1,5 @@
 import { ref } from "jsx";
-import {
-  aligned,
-  type Cell,
-  type CellMap,
-  type Color,
-  type PartialCellMap,
-} from "./utils";
+import { aligned, type CellMap, type Color } from "./utils";
 import {
   type Atlas,
   createTextureAtlas,
@@ -14,11 +8,12 @@ import {
   type TileMap,
 } from "./texture";
 import type { Instances } from "./instance";
-import { CELL_H, CELL_W } from "./GridControls";
-import { canvasRect } from "./state";
+import { CELL_H, CELL_W, type CellInfo } from "./GridControls";
+import { canvasRect, prefersDark } from "./state";
 import { Mat4 } from "./math";
 
-const COLOR_SELECTED_CELL: Color = [0.2, 0.83, 0.6, 0.4]; // emerald-400/40 #34d399
+const COLOR_SELECTED_CELL_DARK: Color = [0.2, 0.83, 0.6, 0.4]; // emerald-400/40 #34d399
+const COLOR_SELECTED_CELL_LIGHT: Color = [0.31, 0.27, 0.9, 0.4]; // indigo-600/40 #4f46e5
 
 export function useCells(gl: () => WebGL2RenderingContext) {
   let atlas: Atlas;
@@ -26,7 +21,7 @@ export function useCells(gl: () => WebGL2RenderingContext) {
   const [list, setList] = ref<CellMap>({});
   const [selected, setSelected] = ref<CellMap>({});
 
-  async function addText(idx: number, value: string) {
+  async function addText(cellPos: CellInfo, value: string) {
     if (!value) return;
     const hasKey = value in tiles;
 
@@ -41,38 +36,13 @@ export function useCells(gl: () => WebGL2RenderingContext) {
     atlas = createTextureAtlas(tiles);
     loadTextureAtlas(gl());
 
-    setCell(idx, (c) => {
-      c.text = value;
-      c.width = tiles[value].width;
-      c.height = tiles[value].height;
-    });
     setList.byRef((cell) => {
-      const c = createCell(cell, idx);
+      const c = createCell(cell, cellPos.idx);
       c.text = value;
       c.width = tiles[value].width;
       c.height = tiles[value].height;
-      c.x = selected()[idx].x;
-      c.y = selected()[idx].y;
-    });
-  }
-
-  function select(cells: PartialCellMap) {
-    const selected: CellMap = {};
-    for (const idx in cells) {
-      createCell(selected, +idx);
-      selected[idx] = {
-        ...selected[idx],
-        ...cells[idx],
-      };
-    }
-
-    setSelected(selected);
-  }
-
-  function setCell(idx: number, cb: (c: Cell) => void) {
-    setSelected.byRef((c) => {
-      createCell(c, idx);
-      cb(c[idx]);
+      c.x = cellPos.x;
+      c.y = cellPos.y;
     });
   }
 
@@ -106,8 +76,11 @@ export function useCells(gl: () => WebGL2RenderingContext) {
         inst.hasUVAt(i)[0] = 1;
         inst.colorAt(i).set(cellColor);
       } else {
+        const color = prefersDark()
+          ? COLOR_SELECTED_CELL_DARK
+          : COLOR_SELECTED_CELL_LIGHT;
         inst.hasUVAt(i)[0] = 0;
-        inst.colorAt(i).set(COLOR_SELECTED_CELL);
+        inst.colorAt(i).set(color);
       }
 
       const model = inst.modelAt(i);
@@ -125,7 +98,7 @@ export function useCells(gl: () => WebGL2RenderingContext) {
     list,
     selected,
     draw,
-    select,
+    select: setSelected,
     addText,
   };
 }

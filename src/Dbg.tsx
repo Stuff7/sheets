@@ -66,7 +66,7 @@ export function DbgDialog(props: DbgProps) {
     return (
       <dialog
         $open={props.open}
-        class="absolute border-2 border-slate-900 dark:border-emerald-300 rounded-md whitespace-break-spaces max-w-3/4 max-h-3/4 left-0 top-0 z-100 bg-zinc-100/75 text-zinc-900 dark:bg-zinc-900/75 dark:text-zinc-100 font-mono overflow-auto"
+        class="absolute border-2 border-slate-900 dark:border-emerald-300 rounded-md whitespace-break-spaces max-w-3/4 max-h-3/4 left-0 top-0 z-100 bg-zinc-100/75 text-zinc-900 dark:bg-zinc-900/75 dark:text-zinc-100 font-mono"
         style:left={`${cursor.x}px`}
         style:top={`${cursor.y}px`}
         g:ontouchmove={drag}
@@ -90,7 +90,7 @@ export function DbgDialog(props: DbgProps) {
             <i></i>
           </button>
         </header>
-        <article data-dbg class:p-2>
+        <article data-dbg class="p-2 overflow-auto">
           <slot />
         </article>
       </dialog>

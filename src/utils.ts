@@ -14,6 +14,10 @@ export type Cell = {
   y: number;
 };
 
+export type KeysWithValue<T, V> = keyof {
+  [K in keyof T as T[K] extends V ? K : never]: T[K];
+};
+
 export type CellMap = Record<number, Cell>;
 export type PartialCellMap = Record<number, Partial<Cell>>;
 

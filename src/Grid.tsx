@@ -47,16 +47,14 @@ export default function Grid() {
     // jsx: string import
     const frag = "cell.frag";
 
-    const result = await initShaderSystem(canvas, vert, frag);
-    if (result instanceof Error) return console.error(result);
-    shaderSys = result;
-
-    [shader] = shaderSys.initShaders({
-      drawMode: shaderSys.gl.TRIANGLE_STRIP,
+    shaderSys = (await initShaderSystem(canvas, vert, frag, {
+      drawMode: "TRIANGLE_STRIP",
       instance: instances().data,
       vertex: QUAD_MESH.vertexData,
       index: QUAD_MESH.indexData,
-    });
+    })) as ShaderSystem;
+    if (shaderSys instanceof Error) return console.error(shaderSys);
+    shader = shaderSys.shader;
 
     updateProjection();
     shaderSys.render();
@@ -134,7 +132,7 @@ export default function Grid() {
       const numSelected = Object.keys(cells.selected()).length;
       const numTexts = Object.keys(cells.list()).length;
       const numCells = numSelected + numTexts;
-      inst.resize(rows + cols + numCells + 1);
+      inst.resize(rows + cols + numCells);
 
       for (let i = 0; i < cols; i++) {
         const model = inst.modelAt(i);
