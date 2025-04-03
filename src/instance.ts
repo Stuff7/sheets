@@ -1,6 +1,6 @@
 import { Mat4 } from "./math";
 
-export const NUM_INST_ATTRS = 24;
+export const NUM_INST_ATTRS = 25;
 export const INST_ATTR_SIZE = 4;
 export const INST_STRIDE = NUM_INST_ATTRS * INST_ATTR_SIZE;
 
@@ -50,15 +50,15 @@ export function initInstances(len: number): Instances {
     },
     colorAt(index) {
       const start = index * NUM_INST_ATTRS + 16;
-      return this.data.subarray(start, start + 3);
-    },
-    hasUVAt(index) {
-      const start = index * NUM_INST_ATTRS + 19;
-      return this.data.subarray(start, start + 1);
+      return this.data.subarray(start, start + 4);
     },
     uvAt(index) {
       const start = index * NUM_INST_ATTRS + 20;
       return this.data.subarray(start, start + 4);
+    },
+    hasUVAt(index) {
+      const start = index * NUM_INST_ATTRS + 24;
+      return this.data.subarray(start, start + 1);
     },
   };
 }

@@ -4,7 +4,18 @@ export type Tuple<
   R extends T[] = [],
 > = R["length"] extends N ? R : Tuple<T, N, [...R, T]>;
 
-export type Color = Tuple<number, 3>;
+export type Color = Tuple<number, 4>;
+
+export type Cell = {
+  text: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+};
+
+export type CellMap = Record<number, Cell>;
+export type PartialCellMap = Record<number, Partial<Cell>>;
 
 export function aligned2(v: number, alignment: number): number {
   return (v + (alignment - 1)) & ~(alignment - 1);

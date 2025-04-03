@@ -44,7 +44,7 @@ export function initWebGL(
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   gl.enable(gl.DEPTH_TEST);
-  gl.clearColor(0.08, 0.08, 0.08, 1.0);
+  gl.clearColor(0.0, 0.0, 0.0, 0.0);
 
   const vert = compileShader(gl, vsSource, gl.VERTEX_SHADER);
   if (vert instanceof Error) return vert;
@@ -237,24 +237,13 @@ export async function initShaderSystem(
         this.gl.enableVertexAttribArray(this.inputs.color);
         this.gl.vertexAttribPointer(
           this.inputs.color,
-          3,
+          4,
           this.gl.FLOAT,
           false,
           INST_STRIDE,
           16 * INST_ATTR_SIZE,
         );
         this.gl.vertexAttribDivisor(this.inputs.color, 1);
-
-        this.gl.enableVertexAttribArray(this.inputs.hasUV);
-        this.gl.vertexAttribPointer(
-          this.inputs.hasUV,
-          1,
-          this.gl.FLOAT,
-          false,
-          INST_STRIDE,
-          19 * INST_ATTR_SIZE,
-        );
-        this.gl.vertexAttribDivisor(this.inputs.hasUV, 1);
 
         this.gl.enableVertexAttribArray(this.inputs.uv);
         this.gl.vertexAttribPointer(
@@ -266,6 +255,17 @@ export async function initShaderSystem(
           20 * INST_ATTR_SIZE,
         );
         this.gl.vertexAttribDivisor(this.inputs.uv, 1);
+
+        this.gl.enableVertexAttribArray(this.inputs.hasUV);
+        this.gl.vertexAttribPointer(
+          this.inputs.hasUV,
+          1,
+          this.gl.FLOAT,
+          false,
+          INST_STRIDE,
+          24 * INST_ATTR_SIZE,
+        );
+        this.gl.vertexAttribDivisor(this.inputs.hasUV, 1);
 
         staticBufOffset = aligned2(
           staticBufOffset + data.vertex.byteLength,

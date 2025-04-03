@@ -21,6 +21,10 @@ function resizeCtx(
 
   const newCtx = canvas.getContext("2d") as CanvasRenderingContext2D;
   if (!newCtx) throw new Error("2D context not available after resizing");
+  newCtx.font = ctx.font;
+  newCtx.fillStyle = ctx.fillStyle;
+  newCtx.textAlign = ctx.textAlign;
+  newCtx.textBaseline = ctx.textBaseline;
 
   return newCtx;
 }
@@ -298,6 +302,7 @@ export function createTextureAtlas(tiles: TileMap): Atlas {
 
   atlasCanvas.height = atlasHeight;
 
+  atlasCtx.clearRect(0, 0, atlasCanvas.width, atlasCanvas.height);
   for (let i = 0; i < images.length; i++) {
     const p = placements[i];
     atlasCtx.drawImage(images[i], p.x, p.y, p.width, p.height);

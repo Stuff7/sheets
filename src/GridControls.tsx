@@ -1,6 +1,11 @@
 import { ref } from "jsx";
 import { canvasRect } from "./state";
-import { aligned, asciiNumParser, getMousePosition } from "./utils";
+import {
+  aligned,
+  asciiNumParser,
+  getMousePosition,
+  type PartialCellMap,
+} from "./utils";
 import Dbg from "./Dbg";
 
 const MAX_COLS = 1e5;
@@ -13,7 +18,7 @@ export const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
 
 type GridControlsProps = {
   onCellInput: (idx: number, text: string) => void;
-  onCellClick: (idx: number, x: number, y: number) => void;
+  onCellSelection: (cells: PartialCellMap) => void;
   scroll: { x: number; y: number };
   onScroll: (scroll: { x: number; y: number }) => void;
 };
@@ -46,11 +51,12 @@ export default function GridControls(props: GridControlsProps) {
       c.row = Math.floor((cursor.y + props.scroll.y - offsetY) / CELL_H);
       c.idx = c.row * MAX_COLS + c.col;
       c.id = `${toAlphaUpper(c.col)}${toAlphaLower(c.row)}`;
-      props.onCellClick(
-        c.idx,
-        cursor.x + props.scroll.x,
-        cursor.y + props.scroll.y,
-      );
+      props.onCellSelection({
+        [c.idx]: {
+          x: cursor.x + props.scroll.x,
+          y: cursor.y + props.scroll.y,
+        },
+      });
     });
   }
 
