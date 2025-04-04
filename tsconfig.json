@@ -13,16 +13,14 @@
     "allowUnusedLabels": true,
     "outDir": "build",
     "sourceMap": true,
+    "noEmit": true,
+    "skipLibCheck": true,
     "noImplicitThis": true,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./src/*"],
+      "~/*": ["./src/*"]
     }
   },
   "include": ["src/**/*", "*.d.ts"],
-  "exclude": [
-    "build",
-    "node_modules",
-    "**/node_modules/*"
-  ]
+  "exclude": ["build", "node_modules", "**/node_modules/*"]
 }

@@ -1,49 +1,48 @@
 import { ref } from "jsx";
 import { canvasRect } from "./state";
 import {
+  MAX_COLS,
+  MAX_ROWS,
   aligned,
-  asciiNumParser,
-  type CellMap,
+  getCellId,
   getMousePosition,
+  isTouchscreen,
+  type Cell,
+  type CellMap,
+  type Pos2D,
 } from "./utils";
 import Dbg from "./Dbg";
 
-const MAX_COLS = 1e5;
-const MAX_ROWS = 2e5;
 export const CELL_W = 100;
 export const CELL_H = 30;
 
-export const [toAlphaUpper] = asciiNumParser(26, "A".charCodeAt(0));
-export const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
-
-export type CellInfo = {
-  col: number;
-  row: number;
-  idx: number;
-  id: string;
-  x: number;
-  y: number;
-};
-
 type GridControlsProps = {
-  onCellInput: (idx: CellInfo, text: string) => void;
+  onCellInput: (idx: Cell, text: string) => void;
   onCellSelection: (cells: CellMap) => void;
-  scroll: { x: number; y: number };
-  onScroll: (scroll: { x: number; y: number }) => void;
+  scroll: Pos2D;
+  onScroll: (scroll: Pos2D) => void;
 };
+
+export const [touchSelection, setTouchSelection] = ref(false);
 
 export default function GridControls(props: GridControlsProps) {
   let cellInput!: HTMLInputElement;
   let isSelecting = false;
-  const areaStart = {} as CellInfo;
+  let ctrlPressed = isTouchscreen;
+  const areaStart = {} as Cell;
   const [isCellInputVisible, setIsCellInputVisible] = ref(false);
-  const [cellInputPos, setCellInputPos] = ref({
-    idx: 0,
-    col: 0,
-    row: 0,
-    x: 0,
-    y: 0,
-    id: "Aa",
+  const [inputCellElem, setInputCellElem] = ref({ x: 0, y: 0, id: "Aa" });
+
+  queueMicrotask(() => {
+    props.onCellSelection({
+      0: {
+        x: 0,
+        y: 0,
+        width: CELL_W,
+        height: CELL_H,
+        text: "",
+      },
+    });
   });
 
   function doSelection(ev: MouseEvent | TouchEvent) {
@@ -51,9 +50,18 @@ export default function GridControls(props: GridControlsProps) {
     updateSelection(ev);
   }
 
+  let hasDragged = false;
+  let selectedCells: CellMap = {};
+  let newSelected: CellMap = {};
+  let lastCell: Cell | null = null;
+  let initialSelectedCells: CellMap = {};
+
   function startSelection(ev: MouseEvent | TouchEvent) {
-    props.onCellSelection({});
+    if (isTouchscreen && !touchSelection()) return;
+    ev.preventDefault();
     getCellAtCursor(ev, areaStart);
+    initialSelectedCells = { ...selectedCells };
+    hasDragged = false;
     updateSelection(ev);
     isSelecting = true;
   }
@@ -61,17 +69,41 @@ export default function GridControls(props: GridControlsProps) {
   function updateSelection(ev: MouseEvent | TouchEvent) {
     const areaEnd = getCellAtCursor(ev);
 
+    if (
+      lastCell &&
+      lastCell.col === areaEnd.col &&
+      lastCell.row === areaEnd.row
+    ) {
+      return;
+    }
+    lastCell = { ...areaEnd };
+
+    if (areaEnd.col !== areaStart.col || areaEnd.row !== areaStart.row) {
+      hasDragged = true;
+    }
+
     const startCol = Math.min(areaStart.col, areaEnd.col);
     const endCol = Math.max(areaStart.col, areaEnd.col);
     const startRow = Math.min(areaStart.row, areaEnd.row);
     const endRow = Math.max(areaStart.row, areaEnd.row);
 
-    const cells = {} as CellMap;
+    if (!ctrlPressed) {
+      selectedCells = {};
+      initialSelectedCells = {};
+    }
+    newSelected = { ...initialSelectedCells };
 
     for (let row = startRow; row <= endRow; row++) {
       for (let col = startCol; col <= endCol; col++) {
         const cellIdx = row * MAX_COLS + col;
-        cells[cellIdx] = {
+
+        if (selectedCells[cellIdx] || newSelected[cellIdx]) {
+          delete selectedCells[cellIdx];
+          delete newSelected[cellIdx];
+          continue;
+        }
+
+        newSelected[cellIdx] = {
           text: "",
           width: CELL_W,
           height: CELL_H,
@@ -81,28 +113,36 @@ export default function GridControls(props: GridControlsProps) {
       }
     }
 
-    props.onCellSelection(cells);
+    props.onCellSelection({
+      ...selectedCells,
+      ...newSelected,
+    });
   }
 
-  function endSelection(ev: MouseEvent | TouchEvent) {
+  function endSelection() {
+    if (isTouchscreen && !touchSelection()) return;
     isSelecting = false;
-    updateSelection(ev);
+    selectedCells = {
+      ...newSelected,
+      ...selectedCells,
+    };
+    props.onCellSelection(selectedCells);
+    lastCell = null;
   }
 
-  function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as CellInfo) {
+  function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
     const cursor = getMousePosition(ev);
     const { x: offsetX, y: offsetY } = canvasRect();
 
     c.col = Math.floor((cursor.x + props.scroll.x - offsetX) / CELL_W);
     c.row = Math.floor((cursor.y + props.scroll.y - offsetY) / CELL_H);
-    c.idx = c.row * MAX_COLS + c.col;
-    c.id = `${toAlphaUpper(c.col)}${toAlphaLower(c.row)}`;
     c.x = cursor.x + props.scroll.x;
     c.y = cursor.y + props.scroll.y;
 
     return c;
   }
 
+  const inputCell = {} as Cell;
   function showCellInput(ev: MouseEvent) {
     setIsCellInputVisible(true);
     const cursor = getMousePosition(ev);
@@ -110,8 +150,9 @@ export default function GridControls(props: GridControlsProps) {
     const y = props.scroll.y % CELL_H;
     const { x: offsetX, y: offsetY } = canvasRect();
 
-    setCellInputPos.byRef((pos) => {
-      getCellAtCursor(ev, pos);
+    setInputCellElem.byRef((pos) => {
+      getCellAtCursor(ev, inputCell);
+      pos.id = getCellId(inputCell.col, inputCell.row);
       pos.x = aligned(cursor.x + x - offsetX, CELL_W) - x + offsetX;
       pos.y = aligned(cursor.y + y - offsetY, CELL_H) - y + offsetY;
       cellInput.focus();
@@ -121,17 +162,24 @@ export default function GridControls(props: GridControlsProps) {
   return (
     <>
       <div
-        class="overflow-auto absolute right-0 bottom-0"
+        class="absolute right-0 bottom-0"
+        class:overflow-auto={!touchSelection()}
         style:width={`${canvasRect().width}px`}
         style:height={`${canvasRect().height}px`}
-        on:click={() => setIsCellInputVisible(false)}
-        on:mousedown={startSelection}
-        on:mousemove={doSelection}
-        on:mouseup={endSelection}
-        on:touchstart={startSelection}
-        on:touchmove={doSelection}
-        on:touchend={endSelection}
-        on:dblclick={showCellInput}
+        g:onkeydown={
+          isTouchscreen
+            ? undefined
+            : (e) => {
+                if (e.key === "Control") ctrlPressed = true;
+              }
+        }
+        g:onkeyup={
+          isTouchscreen
+            ? undefined
+            : (e) => {
+                if (e.key === "Control") ctrlPressed = false;
+              }
+        }
         on:scroll={(ev) =>
           props.onScroll({
             x: ev.currentTarget.scrollLeft,
@@ -142,22 +190,32 @@ export default function GridControls(props: GridControlsProps) {
         <div
           style:width={`${CELL_W * MAX_COLS}px`}
           style:height={`${CELL_H * MAX_ROWS}px`}
+          on:click={() => setIsCellInputVisible(false)}
+          on:mousedown={startSelection}
+          on:mousemove={doSelection}
+          on:mouseup={endSelection}
+          on:touchstart={startSelection}
+          on:touchmove={doSelection}
+          on:touchend={endSelection}
+          on:dblclick={showCellInput}
         />
       </div>
       <label
         class="absolute z-10 h-8 w-25"
         class:hidden={!isCellInputVisible()}
-        style:left={`${cellInputPos().x}px`}
-        style:top={`${cellInputPos().y}px`}
+        style:left={`${inputCellElem().x}px`}
+        style:top={`${inputCellElem().y}px`}
       >
         <input
           $ref={cellInput}
           class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
           on:change={(e) => {
-            props.onCellInput(cellInputPos(), e.currentTarget.value);
+            props.onCellInput(inputCell, e.currentTarget.value);
           }}
         />
-        <strong class="absolute -top-7 -left-1 p-1">{cellInputPos().id}</strong>
+        <strong class="absolute -top-7 -left-1 p-1">
+          {inputCellElem().id}
+        </strong>
       </label>
       <Dbg>
         <p>Input: {isCellInputVisible()}</p>

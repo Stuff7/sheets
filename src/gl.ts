@@ -179,7 +179,7 @@ export async function initShaderSystem(
     staticBuf,
     indexBuf,
     dynamicBuf,
-    dynamicCap: shader.instanceData.byteLength * 20,
+    dynamicCap: INST_STRIDE * 10000,
     shouldRedraw: false,
     initDynamicBuffer,
     resizeDynamicBuffer,
@@ -280,7 +280,7 @@ function resizeInstances(
 ) {
   shader.instanceData = instances;
   if (shader.instanceData.byteLength >= this.dynamicCap) {
-    const newSize = shader.instanceData.byteLength * 10;
+    const newSize = shader.instanceData.byteLength * 2;
     this.resizeDynamicBuffer(newSize, this.gl.DYNAMIC_DRAW);
   }
 
@@ -295,7 +295,7 @@ function requestRedraw(this: ShaderSystem) {
 function draw(this: ShaderSystem) {
   if (!this.gl) return;
 
-  this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+  this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
   this.gl.bindVertexArray(this.shader.id);
   this.gl.drawElementsInstanced(

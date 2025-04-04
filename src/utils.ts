@@ -1,25 +1,46 @@
+export type Color = Tuple<number, 4>;
+
+export type Pos2D = { x: number; y: number };
+
+export type Quad = {
+  text?: string;
+  width: number;
+  height: number;
+} & Pos2D;
+
+export type Cell = {
+  col: number;
+  row: number;
+} & Pos2D;
+
+export type CellMap = Record<number, Quad>;
+export type PartialCellMap = Record<number, Partial<Quad>>;
+
+export const MAX_COLS = 9e4;
+export const MAX_ROWS = 2e5;
+
+export const [toAlphaUpper] = asciiNumParser(26, "A".charCodeAt(0));
+export const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
+
+export function getCellId(col: number, row: number) {
+  return `${toAlphaUpper(col)}${toAlphaLower(row)}`;
+}
+
+export function getCellIdx(col: number, row: number) {
+  return row * MAX_COLS + col;
+}
+
 export type Tuple<
   T,
   N extends number,
   R extends T[] = [],
 > = R["length"] extends N ? R : Tuple<T, N, [...R, T]>;
 
-export type Color = Tuple<number, 4>;
-
-export type Cell = {
-  text: string;
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-};
-
 export type KeysWithValue<T, V> = keyof {
   [K in keyof T as T[K] extends V ? K : never]: T[K];
 };
 
-export type CellMap = Record<number, Cell>;
-export type PartialCellMap = Record<number, Partial<Cell>>;
+export const isTouchscreen = navigator.maxTouchPoints > 0;
 
 export function aligned2(v: number, alignment: number): number {
   return (v + (alignment - 1)) & ~(alignment - 1);
@@ -51,7 +72,7 @@ export function asciiNumParser(base: number, asciiStart: number) {
   ] as const;
 }
 
-export function getMousePosition(ev: MouseEvent | TouchEvent) {
+export function getMousePosition(ev: MouseEvent | TouchEvent): Pos2D {
   let clientX: number;
   let clientY: number;
 

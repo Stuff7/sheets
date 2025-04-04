@@ -1,5 +1,11 @@
 import { ref } from "jsx";
-import { aligned, type CellMap, type Color } from "./utils";
+import {
+  aligned,
+  getCellIdx,
+  type Cell,
+  type CellMap,
+  type Color,
+} from "./utils";
 import {
   type Atlas,
   createTextureAtlas,
@@ -8,12 +14,12 @@ import {
   type TileMap,
 } from "./texture";
 import type { Instances } from "./instance";
-import { CELL_H, CELL_W, type CellInfo } from "./GridControls";
+import { CELL_H, CELL_W } from "./GridControls";
 import { canvasRect, prefersDark } from "./state";
 import { Mat4 } from "./math";
 
 const COLOR_SELECTED_CELL_DARK: Color = [0.2, 0.83, 0.6, 0.4]; // emerald-400/40 #34d399
-const COLOR_SELECTED_CELL_LIGHT: Color = [0.31, 0.27, 0.9, 0.4]; // indigo-600/40 #4f46e5
+const COLOR_SELECTED_CELL_LIGHT: Color = [0.31, 0.27, 0.9, 0.6]; // indigo-600/40 #4f46e5
 
 export function useCells(gl: () => WebGL2RenderingContext) {
   let atlas: Atlas;
@@ -21,7 +27,7 @@ export function useCells(gl: () => WebGL2RenderingContext) {
   const [list, setList] = ref<CellMap>({});
   const [selected, setSelected] = ref<CellMap>({});
 
-  async function addText(cellPos: CellInfo, value: string) {
+  async function addText(cellInfo: Cell, value: string) {
     if (!value) return;
     const hasKey = value in tiles;
 
@@ -37,12 +43,12 @@ export function useCells(gl: () => WebGL2RenderingContext) {
     loadTextureAtlas(gl());
 
     setList.byRef((cell) => {
-      const c = createCell(cell, cellPos.idx);
+      const c = createCell(cell, getCellIdx(cellInfo.col, cellInfo.row));
       c.text = value;
       c.width = tiles[value].width;
       c.height = tiles[value].height;
-      c.x = cellPos.x;
-      c.y = cellPos.y;
+      c.x = cellInfo.x;
+      c.y = cellInfo.y;
     });
   }
 
@@ -87,8 +93,8 @@ export function useCells(gl: () => WebGL2RenderingContext) {
       Mat4.scaleIdentity(model, c.width, c.height, 1);
 
       const { x: offsetX, y: offsetY } = canvasRect();
-      const px = aligned(c.x - offsetX, CELL_W);
-      const py = aligned(c.y - offsetY, CELL_H);
+      const px = aligned(c.x === 0 ? c.x : c.x - offsetX, CELL_W);
+      const py = aligned(c.y === 0 ? c.y : c.y - offsetY, CELL_H);
       Mat4.translateTo(model, px, py, z);
       i++;
     }

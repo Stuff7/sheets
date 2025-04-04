@@ -3,16 +3,20 @@ import For from "jsx/components/For";
 import Dbg from "./Dbg";
 import { canvasRect, setCanvasRect, prefersDark } from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
-import { aligned, type Color } from "./utils";
-import { Mat4 } from "./math";
-import { initInstances, QUAD_MESH } from "./instance";
-import GridControls, {
-  CELL_W,
-  CELL_H,
+import {
+  aligned,
+  getCellIdx,
   toAlphaLower,
   toAlphaUpper,
-} from "./GridControls";
+  type CellMap,
+  type Color,
+} from "./utils";
+import { Mat4 } from "./math";
+import { initInstances, QUAD_MESH } from "./instance";
+import GridControls, { CELL_W, CELL_H } from "./GridControls";
 import { useCells } from "./useCells";
+
+const GRID_LINE_SIZE = 1;
 
 const COLOR_GRID_LINE_DARK: Color = [0.25, 0.25, 0.27, 1.0]; // zinc-700 #3f3f46
 const COLOR_GRID_LINE_LIGHT: Color = [0.89, 0.89, 0.91, 1.0]; // zinc-200 #e4e4e7
@@ -88,76 +92,100 @@ export default function Grid() {
     }
   });
 
+  const [dbgText, setDbgText] = ref("");
   const [cellKeys, setCellKeys] = ref({
     cols: [] as string[],
     rows: [] as string[],
   });
-  watchOnly([canvasRect, cells.selected, scroll, prefersDark], () => {
-    const { width, height } = canvasRect();
-    const w = width + CELL_W;
-    const h = height + CELL_H;
+  watchOnly(
+    [canvasRect, cells.selected, cells.list, scroll, prefersDark],
+    () => {
+      const { width, height } = canvasRect();
+      const w = width + CELL_W;
+      const h = height + CELL_H;
 
-    const cols = Math.ceil(w / CELL_W);
-    const rows = Math.ceil(h / CELL_H);
+      const cols = Math.ceil(w / CELL_W);
+      const rows = Math.ceil(h / CELL_H);
 
-    setCellKeys.byRef((k) => {
-      const colOffset = Math.floor(scroll().x / CELL_W);
-      k.cols.length = 0;
-      for (let i = colOffset; i < cols + colOffset; i++) {
-        const idx = k.cols.length;
-        k.cols.push("");
-        k.cols[idx] += `${toAlphaUpper(i)} `;
+      setCellKeys.byRef((k) => {
+        const colOffset = scroll().x < 0 ? 0 : Math.floor(scroll().x / CELL_W);
+        k.cols.length = 0;
+        for (let i = colOffset; i < cols + colOffset; i++) {
+          const idx = k.cols.length;
+          k.cols.push("");
+          k.cols[idx] += `${toAlphaUpper(i)} `;
+        }
+
+        const rowOffset = scroll().y < 0 ? 0 : Math.floor(scroll().y / CELL_H);
+        k.rows.length = 0;
+        for (let i = rowOffset; i < rows + rowOffset; i++) {
+          const idx = k.rows.length;
+          k.rows.push("");
+          k.rows[idx] += `${toAlphaLower(i)} `;
+        }
+      });
+
+      let lineColor = COLOR_GRID_LINE_DARK;
+      let cellColor = COLOR_CELL_DARK;
+      if (!prefersDark()) {
+        lineColor = COLOR_GRID_LINE_LIGHT;
+        cellColor = COLOR_CELL_LIGHT;
       }
 
-      const rowOffset = Math.floor(scroll().y / CELL_H);
-      k.rows.length = 0;
-      for (let i = rowOffset; i < rows + rowOffset; i++) {
-        const idx = k.rows.length;
-        k.rows.push("");
-        k.rows[idx] += `${toAlphaLower(i)} `;
-      }
-    });
+      const offsetX = aligned(scroll().x, CELL_W);
+      const offsetY = aligned(scroll().y, CELL_H);
 
-    let lineColor = COLOR_GRID_LINE_DARK;
-    let cellColor = COLOR_CELL_DARK;
-    if (!prefersDark()) {
-      lineColor = COLOR_GRID_LINE_LIGHT;
-      cellColor = COLOR_CELL_LIGHT;
-    }
-
-    const offsetX = aligned(scroll().x, CELL_W);
-    const offsetY = aligned(scroll().y, CELL_H);
-
-    setInstances.byRef((inst) => {
-      const numSelected = Object.keys(cells.selected()).length;
-      const numTexts = Object.keys(cells.list()).length;
-      const numCells = numSelected + numTexts;
-      inst.resize(rows + cols + numCells);
-
-      for (let i = 0; i < cols; i++) {
-        const model = inst.modelAt(i);
-        Mat4.scaleIdentity(model, 1, h, 1);
-        Mat4.translateTo(model, i * CELL_W + offsetX, offsetY, 0);
-        inst.colorAt(i).set(lineColor);
-        inst.hasUVAt(i)[0] = 0;
+      // Only render instances in view
+      const col = Math.floor(scroll().x / CELL_W);
+      const row = Math.floor(scroll().y / CELL_H);
+      let numSelected = 0;
+      let numTexts = 0;
+      const selectedCells: CellMap = {};
+      const textCells: CellMap = {};
+      for (let r = row; r < row + rows; r++) {
+        for (let c = col; c < col + cols; c++) {
+          const idx = getCellIdx(c, r);
+          if (idx in cells.selected()) {
+            selectedCells[idx] = cells.selected()[idx];
+            numSelected++;
+          }
+          if (idx in cells.list()) {
+            textCells[idx] = cells.list()[idx];
+            numTexts++;
+          }
+        }
       }
 
-      for (let i = 0; i < rows; i++) {
-        const model = inst.modelAt(i + cols);
-        Mat4.scaleIdentity(model, w, 1, 1);
-        Mat4.translateTo(model, offsetX, i * CELL_H + offsetY, 0);
-        inst.colorAt(i + cols).set(lineColor);
-        inst.hasUVAt(i + cols)[0] = 0;
-      }
+      setInstances.byRef((inst) => {
+        const numCells = numSelected + numTexts;
+        inst.resize(rows + cols + numCells);
+        setDbgText(`COL: ${col} ROW: ${row} NUM_INST: ${numCells}`);
 
-      cells.draw(inst, cells.list(), rows + cols, cellColor);
-      cells.draw(inst, cells.selected(), rows + cols + numTexts, cellColor, 1);
+        for (let i = 0; i < cols; i++) {
+          const model = inst.modelAt(i);
+          Mat4.scaleIdentity(model, GRID_LINE_SIZE, h, 1);
+          Mat4.translateTo(model, i * CELL_W + offsetX, offsetY, 0);
+          inst.colorAt(i).set(lineColor);
+          inst.hasUVAt(i)[0] = 0;
+        }
 
-      if (shader && shaderSys) {
-        shaderSys?.resizeInstances(shader, inst.data);
-      }
-    });
-  });
+        for (let i = 0; i < rows; i++) {
+          const model = inst.modelAt(i + cols);
+          Mat4.scaleIdentity(model, w, GRID_LINE_SIZE, 1);
+          Mat4.translateTo(model, offsetX, i * CELL_H + offsetY, 0);
+          inst.colorAt(i + cols).set(lineColor);
+          inst.hasUVAt(i + cols)[0] = 0;
+        }
+
+        cells.draw(inst, textCells, rows + cols, cellColor);
+        cells.draw(inst, selectedCells, rows + cols + numTexts, cellColor, 1);
+
+        if (shader && shaderSys) {
+          shaderSys?.resizeInstances(shader, inst.data);
+        }
+      });
+    },
+  );
 
   watchOnly([prefersDark, projection, instances], () => {
     shaderSys?.requestRedraw();
@@ -216,6 +244,7 @@ export default function Grid() {
         </p>
         <p>SelectedCells: {JSON.stringify(cells.selected())}</p>
         <p>Cells: {JSON.stringify(cells.list())}</p>
+        <p>{dbgText()}</p>
         <p>
           Scroll: {scroll().x} {scroll().y}
         </p>
