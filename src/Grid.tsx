@@ -1,20 +1,29 @@
 import { ref, watch, watchOnly } from "jsx";
-import For from "jsx/components/For";
 import Dbg from "./Dbg";
-import { canvasRect, setCanvasRect, prefersDark } from "./state";
+import {
+  canvasRect,
+  setCanvasRect,
+  prefersDark,
+  colOffsets,
+  rowOffsets,
+  computeFirstVisibleColumn,
+  computeFirstVisibleRow,
+} from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
 import {
+  CELL_W,
+  CELL_H,
   aligned,
   getCellIdx,
-  toAlphaLower,
-  toAlphaUpper,
+  totalOffsetsRange,
   type CellMap,
   type Color,
 } from "./utils";
 import { Mat4 } from "./math";
 import { initInstances, QUAD_MESH } from "./instance";
-import GridControls, { CELL_W, CELL_H } from "./GridControls";
+import GridControls from "./GridControls";
 import { useCells } from "./useCells";
+import GridAxes from "./GridAxes";
 
 const GRID_LINE_SIZE = 1;
 
@@ -22,12 +31,6 @@ const COLOR_GRID_LINE_DARK: Color = [0.25, 0.25, 0.27, 1.0]; // zinc-700 #3f3f46
 const COLOR_GRID_LINE_LIGHT: Color = [0.89, 0.89, 0.91, 1.0]; // zinc-200 #e4e4e7
 const COLOR_CELL_DARK: Color = [0.09, 0.09, 0.11, 1.0]; // zinc-900 #18181b
 const COLOR_CELL_LIGHT: Color = [0.98, 0.98, 0.98, 1.0]; // zinc-50 #fafafa
-
-const CELL_HEADER_DARK =
-  "dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-emerald-400 dark:active:bg-emerald-100 dark:hover:text-zinc-800";
-const CELL_HEADER_LIGHT =
-  "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 active:bg-indigo-900 hover:text-zinc-200";
-const CELL_HEADER_STYLE = `border min-w-[56.5px] ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
 
 export default function Grid() {
   let canvas!: HTMLCanvasElement;
@@ -92,13 +95,16 @@ export default function Grid() {
     }
   });
 
-  const [dbgText, setDbgText] = ref("");
-  const [cellKeys, setCellKeys] = ref({
-    cols: [] as string[],
-    rows: [] as string[],
-  });
   watchOnly(
-    [canvasRect, cells.selected, cells.list, scroll, prefersDark],
+    [
+      canvasRect,
+      cells.selected,
+      cells.list,
+      colOffsets,
+      rowOffsets,
+      scroll,
+      prefersDark,
+    ],
     () => {
       const { width, height } = canvasRect();
       const w = width + CELL_W;
@@ -106,24 +112,6 @@ export default function Grid() {
 
       const cols = Math.ceil(w / CELL_W);
       const rows = Math.ceil(h / CELL_H);
-
-      setCellKeys.byRef((k) => {
-        const colOffset = scroll().x < 0 ? 0 : Math.floor(scroll().x / CELL_W);
-        k.cols.length = 0;
-        for (let i = colOffset; i < cols + colOffset; i++) {
-          const idx = k.cols.length;
-          k.cols.push("");
-          k.cols[idx] += `${toAlphaUpper(i)} `;
-        }
-
-        const rowOffset = scroll().y < 0 ? 0 : Math.floor(scroll().y / CELL_H);
-        k.rows.length = 0;
-        for (let i = rowOffset; i < rows + rowOffset; i++) {
-          const idx = k.rows.length;
-          k.rows.push("");
-          k.rows[idx] += `${toAlphaLower(i)} `;
-        }
-      });
 
       let lineColor = COLOR_GRID_LINE_DARK;
       let cellColor = COLOR_CELL_DARK;
@@ -159,20 +147,35 @@ export default function Grid() {
       setInstances.byRef((inst) => {
         const numCells = numSelected + numTexts;
         inst.resize(rows + cols + numCells);
-        setDbgText(`COL: ${col} ROW: ${row} NUM_INST: ${numCells}`);
 
+        const col = computeFirstVisibleColumn(scroll().x);
         for (let i = 0; i < cols; i++) {
+          const colIdx = col.index + i - 1;
+          const offset = totalOffsetsRange(col.index, colIdx, colOffsets());
           const model = inst.modelAt(i);
           Mat4.scaleIdentity(model, GRID_LINE_SIZE, h, 1);
-          Mat4.translateTo(model, i * CELL_W + offsetX, offsetY, 0);
+          Mat4.translateTo(
+            model,
+            i * CELL_W + scroll().x + offset - col.remainder,
+            offsetY,
+            0,
+          );
           inst.colorAt(i).set(lineColor);
           inst.hasUVAt(i)[0] = 0;
         }
 
+        const row = computeFirstVisibleRow(scroll().y);
         for (let i = 0; i < rows; i++) {
+          const rowIdx = row.index + i - 1;
+          const offset = totalOffsetsRange(row.index, rowIdx, rowOffsets());
           const model = inst.modelAt(i + cols);
           Mat4.scaleIdentity(model, w, GRID_LINE_SIZE, 1);
-          Mat4.translateTo(model, offsetX, i * CELL_H + offsetY, 0);
+          Mat4.translateTo(
+            model,
+            offsetX,
+            i * CELL_H + scroll().y + offset - row.remainder,
+            0,
+          );
           inst.colorAt(i + cols).set(lineColor);
           inst.hasUVAt(i + cols)[0] = 0;
         }
@@ -196,40 +199,7 @@ export default function Grid() {
   return (
     <article class="font-mono overflow-hidden max-w-dvw max-h-dvh grid grid-rows-[auto_minmax(0,1fr)] grid-cols-[max-content_minmax(0,1fr)]">
       <div class="relative dark:bg-zinc-800 bg-zinc-200 z-1" />
-      <header
-        class="relative overflow-visible max-w-dvw whitespace-nowrap"
-        style:left={`-${scroll().x % CELL_W}px`}
-      >
-        <For
-          each={cellKeys().cols}
-          do={(col) => (
-            <button
-              type="button"
-              class={`${CELL_HEADER_STYLE}`}
-              style:width={`${CELL_W}px`}
-            >
-              {col()}
-            </button>
-          )}
-        />
-      </header>
-      <aside
-        class="relative overflow-visible max-h-dvh"
-        style:top={`-${scroll().y % CELL_H}px`}
-      >
-        <For
-          each={cellKeys().rows}
-          do={(row) => (
-            <button
-              type="button"
-              class={`block w-full px-2 ${CELL_HEADER_STYLE}`}
-              style:height={`${CELL_H}px`}
-            >
-              {row()}
-            </button>
-          )}
-        />
-      </aside>
+      <GridAxes scroll={scroll()} />
       <GridControls
         onCellInput={cells.addText}
         onCellSelection={cells.select}
@@ -244,7 +214,6 @@ export default function Grid() {
         </p>
         <p>SelectedCells: {JSON.stringify(cells.selected())}</p>
         <p>Cells: {JSON.stringify(cells.list())}</p>
-        <p>{dbgText()}</p>
         <p>
           Scroll: {scroll().x} {scroll().y}
         </p>

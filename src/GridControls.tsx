@@ -1,6 +1,9 @@
 import { ref } from "jsx";
-import { canvasRect } from "./state";
+import { totalOffsets } from "./utils";
+import { canvasRect, colOffsets, rowOffsets } from "./state";
 import {
+  CELL_H,
+  CELL_W,
   MAX_COLS,
   MAX_ROWS,
   aligned,
@@ -12,9 +15,6 @@ import {
   type Pos2D,
 } from "./utils";
 import Dbg from "./Dbg";
-
-export const CELL_W = 100;
-export const CELL_H = 30;
 
 type GridControlsProps = {
   onCellInput: (idx: Cell, text: string) => void;
@@ -188,8 +188,8 @@ export default function GridControls(props: GridControlsProps) {
         }
       >
         <div
-          style:width={`${CELL_W * MAX_COLS}px`}
-          style:height={`${CELL_H * MAX_ROWS}px`}
+          style:width={`${CELL_W * MAX_COLS + totalOffsets(colOffsets())}px`}
+          style:height={`${CELL_H * MAX_ROWS + totalOffsets(rowOffsets())}px`}
           on:click={() => setIsCellInputVisible(false)}
           on:mousedown={startSelection}
           on:mousemove={doSelection}

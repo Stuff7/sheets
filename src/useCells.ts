@@ -2,6 +2,8 @@ import { ref } from "jsx";
 import {
   aligned,
   getCellIdx,
+  CELL_W,
+  CELL_H,
   type Cell,
   type CellMap,
   type Color,
@@ -14,7 +16,6 @@ import {
   type TileMap,
 } from "./texture";
 import type { Instances } from "./instance";
-import { CELL_H, CELL_W } from "./GridControls";
 import { canvasRect, prefersDark } from "./state";
 import { Mat4 } from "./math";
 

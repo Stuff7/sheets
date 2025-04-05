@@ -15,12 +15,22 @@ export type Cell = {
 
 export type CellMap = Record<number, Quad>;
 export type PartialCellMap = Record<number, Partial<Quad>>;
+export type OffsetMap = Record<number, number>;
 
 export const MAX_COLS = 9e4;
 export const MAX_ROWS = 2e5;
 
-export const [toAlphaUpper] = asciiNumParser(26, "A".charCodeAt(0));
-export const [toAlphaLower] = asciiNumParser(26, "a".charCodeAt(0));
+export const CELL_W = 100;
+export const CELL_H = 30;
+
+export const [toAlphaUpper, fromAlphaUpper] = asciiNumParser(
+  26,
+  "A".charCodeAt(0),
+);
+export const [toAlphaLower, fromAlphaLower] = asciiNumParser(
+  26,
+  "a".charCodeAt(0),
+);
 
 export function getCellId(col: number, row: number) {
   return `${toAlphaUpper(col)}${toAlphaLower(row)}`;
@@ -28,6 +38,31 @@ export function getCellId(col: number, row: number) {
 
 export function getCellIdx(col: number, row: number) {
   return row * MAX_COLS + col;
+}
+
+export function totalOffsetsUntil(n: number, offsets: OffsetMap) {
+  let sum = 0;
+  for (const k in offsets) {
+    if (+k <= n) sum += offsets[k];
+  }
+  return sum;
+}
+
+export function totalOffsetsRange(
+  from: number,
+  to: number,
+  offsets: OffsetMap,
+) {
+  let sum = 0;
+  for (const k in offsets) {
+    const n = +k;
+    if (n <= to && n >= from) sum += offsets[k];
+  }
+  return sum;
+}
+
+export function totalOffsets(offsets: OffsetMap) {
+  return Object.values(offsets).reduce((cum, n) => cum + n, 0);
 }
 
 export type Tuple<
