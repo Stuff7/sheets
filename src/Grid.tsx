@@ -198,7 +198,7 @@ export default function Grid() {
 
   return (
     <article class="font-mono overflow-hidden max-w-dvw max-h-dvh grid grid-rows-[auto_minmax(0,1fr)] grid-cols-[max-content_minmax(0,1fr)]">
-      <div class="relative dark:bg-zinc-800 bg-zinc-200 z-1" />
+      <div class="relative dark:bg-zinc-800 bg-zinc-200 z-11" />
       <GridAxes scroll={scroll()} />
       <GridControls
         onCellInput={cells.addText}

@@ -1,6 +1,14 @@
 import { ref } from "jsx";
-import { totalOffsets } from "./utils";
-import { canvasRect, colOffsets, rowOffsets } from "./state";
+import { totalOffsets, totalOffsetsRange, totalOffsetsUntil } from "./utils";
+import {
+  canvasRect,
+  colOffsets,
+  computeFirstVisibleColumn,
+  computeFirstVisibleRow,
+  getEffectiveCellHeight,
+  getEffectiveCellWidth,
+  rowOffsets,
+} from "./state";
 import {
   CELL_H,
   CELL_W,
@@ -103,6 +111,7 @@ export default function GridControls(props: GridControlsProps) {
           continue;
         }
 
+        // TODO: Add offset to width and height
         newSelected[cellIdx] = {
           text: "",
           width: CELL_W,
@@ -130,13 +139,22 @@ export default function GridControls(props: GridControlsProps) {
     lastCell = null;
   }
 
+  // TODO: get cell position with offsets
   function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
-    const cursor = getMousePosition(ev);
-    const { x: offsetX, y: offsetY } = canvasRect();
+    const col = computeFirstVisibleColumn(props.scroll.x);
+    const row = computeFirstVisibleRow(props.scroll.y);
 
-    c.col = Math.floor((cursor.x + props.scroll.x - offsetX) / CELL_W);
-    c.row = Math.floor((cursor.y + props.scroll.y - offsetY) / CELL_H);
+    const cursor = getMousePosition(ev);
+
+    c.col =
+      computeFirstVisibleColumn(props.scroll.x + cursor.x - canvasRect().x)
+        .index + 1;
+    c.row = computeFirstVisibleRow(props.scroll.y + cursor.y).index;
     c.x = cursor.x + props.scroll.x;
+    const offset = totalOffsetsUntil(c.col - 2, colOffsets());
+    console.log(c.col, col, offset);
+    c.x =
+      (c.col - col.index) * CELL_W + props.scroll.x + offset + col.remainder;
     c.y = cursor.y + props.scroll.y;
 
     return c;
