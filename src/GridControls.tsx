@@ -1,5 +1,5 @@
 import { ref } from "jsx";
-import { totalOffsets, totalOffsetsRange, totalOffsetsUntil } from "./utils";
+import { totalOffsets, totalOffsetsRange } from "./utils";
 import {
   canvasRect,
   colOffsets,
@@ -14,7 +14,6 @@ import {
   CELL_W,
   MAX_COLS,
   MAX_ROWS,
-  aligned,
   getCellId,
   getMousePosition,
   isTouchscreen,
@@ -34,12 +33,18 @@ type GridControlsProps = {
 export const [touchSelection, setTouchSelection] = ref(false);
 
 export default function GridControls(props: GridControlsProps) {
-  let cellInput!: HTMLInputElement;
+  let cellInput!: HTMLTextAreaElement;
   let isSelecting = false;
   let ctrlPressed = isTouchscreen;
   const areaStart = {} as Cell;
   const [isCellInputVisible, setIsCellInputVisible] = ref(false);
-  const [inputCellElem, setInputCellElem] = ref({ x: 0, y: 0, id: "Aa" });
+  const [inputCellElem, setInputCellElem] = ref({
+    x: 0,
+    y: 0,
+    width: CELL_W,
+    height: CELL_H,
+    id: "Aa",
+  });
 
   queueMicrotask(() => {
     props.onCellSelection({
@@ -111,13 +116,22 @@ export default function GridControls(props: GridControlsProps) {
           continue;
         }
 
-        // TODO: Add offset to width and height
+        const offsetX =
+          areaStart.col > col
+            ? -totalOffsetsRange(col, areaStart.col, colOffsets())
+            : totalOffsetsRange(areaStart.col, col - 1, colOffsets());
+
+        const offsetY =
+          areaStart.row > row
+            ? -totalOffsetsRange(row, areaStart.row, rowOffsets())
+            : totalOffsetsRange(areaStart.row, row - 1, rowOffsets());
+
         newSelected[cellIdx] = {
           text: "",
-          width: CELL_W,
-          height: CELL_H,
-          x: areaStart.x + (col - areaStart.col) * CELL_W,
-          y: areaStart.y + (row - areaStart.row) * CELL_H,
+          width: getEffectiveCellWidth(col),
+          height: getEffectiveCellHeight(row),
+          x: areaStart.x + (col - areaStart.col) * CELL_W + offsetX,
+          y: areaStart.y + (row - areaStart.row) * CELL_H + offsetY,
         };
       }
     }
@@ -139,23 +153,29 @@ export default function GridControls(props: GridControlsProps) {
     lastCell = null;
   }
 
-  // TODO: get cell position with offsets
   function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
     const col = computeFirstVisibleColumn(props.scroll.x);
     const row = computeFirstVisibleRow(props.scroll.y);
 
     const cursor = getMousePosition(ev);
 
-    c.col =
-      computeFirstVisibleColumn(props.scroll.x + cursor.x - canvasRect().x)
-        .index + 1;
-    c.row = computeFirstVisibleRow(props.scroll.y + cursor.y).index;
-    c.x = cursor.x + props.scroll.x;
-    const offset = totalOffsetsUntil(c.col - 2, colOffsets());
-    console.log(c.col, col, offset);
+    c.col = computeFirstVisibleColumn(
+      props.scroll.x + cursor.x - canvasRect().x,
+    ).index;
+    c.row = computeFirstVisibleRow(
+      props.scroll.y + cursor.y - canvasRect().y,
+    ).index;
+
     c.x =
-      (c.col - col.index) * CELL_W + props.scroll.x + offset + col.remainder;
-    c.y = cursor.y + props.scroll.y;
+      (c.col - col.index) * CELL_W +
+      props.scroll.x +
+      totalOffsetsRange(col.index, c.col - 1, colOffsets()) -
+      col.remainder;
+    c.y =
+      (c.row - row.index) * CELL_H +
+      props.scroll.y +
+      totalOffsetsRange(row.index, c.row - 1, rowOffsets()) -
+      row.remainder;
 
     return c;
   }
@@ -163,16 +183,15 @@ export default function GridControls(props: GridControlsProps) {
   const inputCell = {} as Cell;
   function showCellInput(ev: MouseEvent) {
     setIsCellInputVisible(true);
-    const cursor = getMousePosition(ev);
-    const x = props.scroll.x % CELL_W;
-    const y = props.scroll.y % CELL_H;
     const { x: offsetX, y: offsetY } = canvasRect();
 
     setInputCellElem.byRef((pos) => {
       getCellAtCursor(ev, inputCell);
       pos.id = getCellId(inputCell.col, inputCell.row);
-      pos.x = aligned(cursor.x + x - offsetX, CELL_W) - x + offsetX;
-      pos.y = aligned(cursor.y + y - offsetY, CELL_H) - y + offsetY;
+      pos.x = inputCell.x + offsetX - props.scroll.x;
+      pos.y = inputCell.y + offsetY - props.scroll.y;
+      pos.width = getEffectiveCellWidth(inputCell.col);
+      pos.height = getEffectiveCellHeight(inputCell.row);
       cellInput.focus();
     });
   }
@@ -223,8 +242,10 @@ export default function GridControls(props: GridControlsProps) {
         class:hidden={!isCellInputVisible()}
         style:left={`${inputCellElem().x}px`}
         style:top={`${inputCellElem().y}px`}
+        style:width={`${inputCellElem().width}px`}
+        style:height={`${inputCellElem().height}px`}
       >
-        <input
+        <textarea
           $ref={cellInput}
           class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
           on:change={(e) => {

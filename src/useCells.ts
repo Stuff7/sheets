@@ -92,11 +92,7 @@ export function useCells(gl: () => WebGL2RenderingContext) {
 
       const model = inst.modelAt(i);
       Mat4.scaleIdentity(model, c.width, c.height, 1);
-
-      const { x: offsetX, y: offsetY } = canvasRect();
-      const px = aligned(c.x === 0 ? c.x : c.x - offsetX, CELL_W);
-      const py = aligned(c.y === 0 ? c.y : c.y - offsetY, CELL_H);
-      Mat4.translateTo(model, px, py, z);
+      Mat4.translateTo(model, c.x, c.y, z);
       i++;
     }
   }

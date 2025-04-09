@@ -124,14 +124,14 @@ export default function Grid() {
       const offsetY = aligned(scroll().y, CELL_H);
 
       // Only render instances in view
-      const col = Math.floor(scroll().x / CELL_W);
-      const row = Math.floor(scroll().y / CELL_H);
+      const firstCol = computeFirstVisibleColumn(scroll().x);
+      const firstRow = computeFirstVisibleRow(scroll().y);
       let numSelected = 0;
       let numTexts = 0;
       const selectedCells: CellMap = {};
       const textCells: CellMap = {};
-      for (let r = row; r < row + rows; r++) {
-        for (let c = col; c < col + cols; c++) {
+      for (let r = firstRow.index; r < firstRow.index + rows; r++) {
+        for (let c = firstCol.index; c < firstCol.index + cols; c++) {
           const idx = getCellIdx(c, r);
           if (idx in cells.selected()) {
             selectedCells[idx] = cells.selected()[idx];
@@ -148,15 +148,18 @@ export default function Grid() {
         const numCells = numSelected + numTexts;
         inst.resize(rows + cols + numCells);
 
-        const col = computeFirstVisibleColumn(scroll().x);
         for (let i = 0; i < cols; i++) {
-          const colIdx = col.index + i - 1;
-          const offset = totalOffsetsRange(col.index, colIdx, colOffsets());
+          const colIdx = firstCol.index + i - 1;
+          const offset = totalOffsetsRange(
+            firstCol.index,
+            colIdx,
+            colOffsets(),
+          );
           const model = inst.modelAt(i);
           Mat4.scaleIdentity(model, GRID_LINE_SIZE, h, 1);
           Mat4.translateTo(
             model,
-            i * CELL_W + scroll().x + offset - col.remainder,
+            i * CELL_W + scroll().x + offset - firstCol.remainder,
             offsetY,
             0,
           );
@@ -164,16 +167,19 @@ export default function Grid() {
           inst.hasUVAt(i)[0] = 0;
         }
 
-        const row = computeFirstVisibleRow(scroll().y);
         for (let i = 0; i < rows; i++) {
-          const rowIdx = row.index + i - 1;
-          const offset = totalOffsetsRange(row.index, rowIdx, rowOffsets());
+          const rowIdx = firstRow.index + i - 1;
+          const offset = totalOffsetsRange(
+            firstRow.index,
+            rowIdx,
+            rowOffsets(),
+          );
           const model = inst.modelAt(i + cols);
           Mat4.scaleIdentity(model, w, GRID_LINE_SIZE, 1);
           Mat4.translateTo(
             model,
             offsetX,
-            i * CELL_H + scroll().y + offset - row.remainder,
+            i * CELL_H + scroll().y + offset - firstRow.remainder,
             0,
           );
           inst.colorAt(i + cols).set(lineColor);
