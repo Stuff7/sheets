@@ -149,6 +149,18 @@ export default function GridAxes(props: GridAxesProps) {
     },
   );
 
+  // TODO: on cell header click select whole row or column
+  // Every key represents the id of the selected column, every value represents
+  // the cells of that column that are unselected
+  const [selectedCols, setSelectedCols] = ref<Record<number, number[]>>({});
+  function selectCol(ev: MouseEvent | TouchEvent, col: number) {
+    if (ev.target !== ev.currentTarget) return;
+    setSelectedCols.byRef((cols) => {
+      if (cols[col]) delete cols[col];
+      else cols[col] = [];
+    });
+  }
+
   return (
     <>
       <header
@@ -161,6 +173,7 @@ export default function GridAxes(props: GridAxesProps) {
             <button
               type="button"
               class={`${CELL_HEADER_STYLE}`}
+              on:click={(ev) => selectCol(ev, fromAlphaUpper(col()))}
               style:width={`${getEffectiveCellWidth(fromAlphaUpper(col()))}px`}
             >
               {col()}
@@ -214,6 +227,7 @@ export default function GridAxes(props: GridAxesProps) {
       <Dbg>
         <p>ColOffsets: {JSON.stringify(colOffsets())}</p>
         <p>RowOffsets: {JSON.stringify(rowOffsets())}</p>
+        <p>SelectedCols: {JSON.stringify(selectedCols())}</p>
       </Dbg>
     </>
   );
