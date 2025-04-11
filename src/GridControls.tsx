@@ -1,4 +1,4 @@
-import { ref } from "jsx";
+import { ref, watchFn, watchOnly } from "jsx";
 import { totalOffsets, totalOffsetsRange } from "./utils";
 import {
   canvasRect,
@@ -8,6 +8,7 @@ import {
   getEffectiveCellHeight,
   getEffectiveCellWidth,
   rowOffsets,
+  type PartialCell,
 } from "./state";
 import {
   CELL_H,
@@ -36,6 +37,9 @@ export default function GridControls(props: GridControlsProps) {
   let cellInput!: HTMLTextAreaElement;
   let isSelecting = false;
   let ctrlPressed = isTouchscreen;
+  let firstCol: PartialCell;
+  let firstRow: PartialCell;
+
   const areaStart = {} as Cell;
   const [isCellInputVisible, setIsCellInputVisible] = ref(false);
   const [inputCellElem, setInputCellElem] = ref({
@@ -45,6 +49,14 @@ export default function GridControls(props: GridControlsProps) {
     height: CELL_H,
     id: "Aa",
   });
+
+  watchFn(
+    () => props.scroll,
+    () => {
+      firstCol = computeFirstVisibleColumn(props.scroll.x);
+      firstRow = computeFirstVisibleRow(props.scroll.y);
+    },
+  );
 
   queueMicrotask(() => {
     props.onCellSelection({
@@ -115,24 +127,7 @@ export default function GridControls(props: GridControlsProps) {
           delete newSelected[cellIdx];
           continue;
         }
-
-        const offsetX =
-          areaStart.col > col
-            ? -totalOffsetsRange(col, areaStart.col, colOffsets())
-            : totalOffsetsRange(areaStart.col, col - 1, colOffsets());
-
-        const offsetY =
-          areaStart.row > row
-            ? -totalOffsetsRange(row, areaStart.row, rowOffsets())
-            : totalOffsetsRange(areaStart.row, row - 1, rowOffsets());
-
-        newSelected[cellIdx] = {
-          text: "",
-          width: getEffectiveCellWidth(col),
-          height: getEffectiveCellHeight(row),
-          x: areaStart.x + (col - areaStart.col) * CELL_W + offsetX,
-          y: areaStart.y + (row - areaStart.row) * CELL_H + offsetY,
-        };
+        positionCell(cellIdx, col, row);
       }
     }
 
@@ -142,21 +137,54 @@ export default function GridControls(props: GridControlsProps) {
     });
   }
 
+  watchOnly([colOffsets, rowOffsets], () => {
+    positionSelection(areaStart);
+    for (const key in newSelected) {
+      const idx = +key;
+      const col = idx % MAX_COLS;
+      const row = Math.floor(idx / MAX_COLS);
+      positionCell(idx, col, row);
+    }
+    selectedCells = {
+      ...selectedCells,
+      ...newSelected,
+    };
+    props.onCellSelection(newSelected);
+  });
+
+  function positionCell(cellIdx: number, col: number, row: number) {
+    const offsetX =
+      areaStart.col > col
+        ? -totalOffsetsRange(col, areaStart.col, colOffsets())
+        : totalOffsetsRange(areaStart.col, col - 1, colOffsets());
+
+    const offsetY =
+      areaStart.row > row
+        ? -totalOffsetsRange(row, areaStart.row, rowOffsets())
+        : totalOffsetsRange(areaStart.row, row - 1, rowOffsets());
+
+    newSelected[cellIdx] = {
+      text: "",
+      width: getEffectiveCellWidth(col),
+      height: getEffectiveCellHeight(row),
+      x: areaStart.x + (col - areaStart.col) * CELL_W + offsetX,
+      y: areaStart.y + (row - areaStart.row) * CELL_H + offsetY,
+    };
+  }
+
   function endSelection() {
+    if (!isSelecting) return;
     if (isTouchscreen && !touchSelection()) return;
     isSelecting = false;
     selectedCells = {
-      ...newSelected,
       ...selectedCells,
+      ...newSelected,
     };
     props.onCellSelection(selectedCells);
     lastCell = null;
   }
 
   function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
-    const col = computeFirstVisibleColumn(props.scroll.x);
-    const row = computeFirstVisibleRow(props.scroll.y);
-
     const cursor = getMousePosition(ev);
 
     c.col = computeFirstVisibleColumn(
@@ -166,18 +194,22 @@ export default function GridControls(props: GridControlsProps) {
       props.scroll.y + cursor.y - canvasRect().y,
     ).index;
 
-    c.x =
-      (c.col - col.index) * CELL_W +
-      props.scroll.x +
-      totalOffsetsRange(col.index, c.col - 1, colOffsets()) -
-      col.remainder;
-    c.y =
-      (c.row - row.index) * CELL_H +
-      props.scroll.y +
-      totalOffsetsRange(row.index, c.row - 1, rowOffsets()) -
-      row.remainder;
+    positionSelection(c);
 
     return c;
+  }
+
+  function positionSelection(c: Cell) {
+    c.x =
+      (c.col - firstCol.index) * CELL_W +
+      props.scroll.x +
+      totalOffsetsRange(firstCol.index, c.col - 1, colOffsets()) -
+      firstCol.remainder;
+    c.y =
+      (c.row - firstRow.index) * CELL_H +
+      props.scroll.y +
+      totalOffsetsRange(firstRow.index, c.row - 1, rowOffsets()) -
+      firstRow.remainder;
   }
 
   const inputCell = {} as Cell;

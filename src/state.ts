@@ -27,7 +27,7 @@ export function computeFirstVisible(
   offsets: Record<number, number>,
   cellSize: number,
   getEffectiveSize: (index: number) => number,
-): { index: number; remainder: number } {
+): PartialCell {
   const nonDefault = Object.keys(offsets)
     .map(Number)
     .sort((a, b) => a - b);
@@ -61,10 +61,12 @@ export function computeFirstVisible(
   return { index: i + defaultCells, remainder: (scroll - cum) % cellSize };
 }
 
-export function computeFirstVisibleColumn(scrollX: number): {
+export type PartialCell = {
   index: number;
   remainder: number;
-} {
+};
+
+export function computeFirstVisibleColumn(scrollX: number): PartialCell {
   return computeFirstVisible(
     scrollX,
     colOffsets(),
@@ -73,10 +75,7 @@ export function computeFirstVisibleColumn(scrollX: number): {
   );
 }
 
-export function computeFirstVisibleRow(scrollY: number): {
-  index: number;
-  remainder: number;
-} {
+export function computeFirstVisibleRow(scrollY: number): PartialCell {
   return computeFirstVisible(
     scrollY,
     rowOffsets(),

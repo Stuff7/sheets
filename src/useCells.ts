@@ -1,6 +1,5 @@
 import { ref } from "jsx";
 import {
-  aligned,
   getCellIdx,
   CELL_W,
   CELL_H,
@@ -16,7 +15,7 @@ import {
   type TileMap,
 } from "./texture";
 import type { Instances } from "./instance";
-import { canvasRect, prefersDark } from "./state";
+import { prefersDark } from "./state";
 import { Mat4 } from "./math";
 
 const COLOR_SELECTED_CELL_DARK: Color = [0.2, 0.83, 0.6, 0.4]; // emerald-400/40 #34d399
