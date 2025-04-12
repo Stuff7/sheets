@@ -1,5 +1,12 @@
 import { ref, watchFn, watchOnly } from "jsx";
-import { totalOffsets, totalOffsetsRange } from "./utils";
+import {
+  totalOffsets,
+  totalOffsetsRange,
+  getCellId,
+  getMousePosition,
+  isTouchscreen,
+  getCellIdx,
+} from "./utils";
 import {
   canvasRect,
   colOffsets,
@@ -8,39 +15,27 @@ import {
   getEffectiveCellHeight,
   getEffectiveCellWidth,
   rowOffsets,
-  type PartialCell,
+  scroll,
+  setCustomCells,
+  setScroll,
+  setSelectedCells,
+  touchSelection,
 } from "./state";
-import {
-  CELL_H,
-  CELL_W,
-  MAX_COLS,
-  MAX_ROWS,
-  getCellId,
-  getMousePosition,
-  isTouchscreen,
-  type Cell,
-  type CellMap,
-  type Pos2D,
-} from "./utils";
 import Dbg from "./Dbg";
+import type { Cell, CellMap, PartialCell } from "./types";
+import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
+import { addText } from "./render";
 
-type GridControlsProps = {
-  onCellInput: (idx: Cell, text: string) => void;
-  onCellSelection: (cells: CellMap) => void;
-  scroll: Pos2D;
-  onScroll: (scroll: Pos2D) => void;
-};
-
-export const [touchSelection, setTouchSelection] = ref(false);
-
-export default function GridControls(props: GridControlsProps) {
+export default function GridControls() {
   let cellInput!: HTMLTextAreaElement;
   let isSelecting = false;
   let ctrlPressed = isTouchscreen;
   let firstCol: PartialCell;
   let firstRow: PartialCell;
 
-  const areaStart = {} as Cell;
+  let areaLeft = {} as Cell;
+  let areaTop = {} as Cell;
+  let areaStart = {} as Cell;
   const [isCellInputVisible, setIsCellInputVisible] = ref(false);
   const [inputCellElem, setInputCellElem] = ref({
     x: 0,
@@ -51,15 +46,15 @@ export default function GridControls(props: GridControlsProps) {
   });
 
   watchFn(
-    () => props.scroll,
+    () => scroll(),
     () => {
-      firstCol = computeFirstVisibleColumn(props.scroll.x);
-      firstRow = computeFirstVisibleRow(props.scroll.y);
+      firstCol = computeFirstVisibleColumn(scroll().x);
+      firstRow = computeFirstVisibleRow(scroll().y);
     },
   );
 
   queueMicrotask(() => {
-    props.onCellSelection({
+    setSelectedCells({
       0: {
         x: 0,
         y: 0,
@@ -85,6 +80,15 @@ export default function GridControls(props: GridControlsProps) {
     if (isTouchscreen && !touchSelection()) return;
     ev.preventDefault();
     getCellAtCursor(ev, areaStart);
+
+    if (areaLeft.col == null || areaStart.col < areaLeft.col) {
+      areaLeft = { ...areaStart };
+    }
+
+    if (areaTop.row == null || areaStart.row < areaTop.row) {
+      areaTop = { ...areaStart };
+    }
+
     initialSelectedCells = { ...selectedCells };
     hasDragged = false;
     updateSelection(ev);
@@ -127,32 +131,52 @@ export default function GridControls(props: GridControlsProps) {
           delete newSelected[cellIdx];
           continue;
         }
-        positionCell(cellIdx, col, row);
+        positionSelection(cellIdx, col, row);
       }
     }
 
-    props.onCellSelection({
+    setSelectedCells({
       ...selectedCells,
       ...newSelected,
     });
   }
 
-  watchOnly([colOffsets, rowOffsets], () => {
-    positionSelection(areaStart);
-    for (const key in newSelected) {
-      const idx = +key;
-      const col = idx % MAX_COLS;
-      const row = Math.floor(idx / MAX_COLS);
-      positionCell(idx, col, row);
-    }
+  const customCellPositions: Record<number, Cell> = {};
+  function addCustomCell(text: string) {
+    if (!text) return;
+    addText(inputCell, text);
+    customCellPositions[getCellIdx(inputCell.col, inputCell.row)] = inputCell;
+  }
+
+  watchOnly([colOffsets, rowOffsets], (c) => {
+    areaStart = { ...(c === colOffsets() ? areaLeft : areaTop) };
+    positionCell(areaStart);
     selectedCells = {
       ...selectedCells,
       ...newSelected,
     };
-    props.onCellSelection(newSelected);
+    for (const key in selectedCells) {
+      const idx = +key;
+      const col = idx % MAX_COLS;
+      const row = Math.floor(idx / MAX_COLS);
+      positionSelection(idx, col, row);
+    }
+    setSelectedCells(selectedCells);
+
+    setCustomCells.byRef((cells) => {
+      for (const k in customCellPositions) {
+        const pos = customCellPositions[k];
+        pos.x = pos.x + canvasRect().x - scroll().x;
+        pos.y = pos.y + canvasRect().y - scroll().y;
+        positionCell(pos);
+        const cell = cells[k];
+        cell.x = pos.x;
+        cell.y = pos.y;
+      }
+    });
   });
 
-  function positionCell(cellIdx: number, col: number, row: number) {
+  function positionSelection(cellIdx: number, col: number, row: number) {
     const offsetX =
       areaStart.col > col
         ? -totalOffsetsRange(col, areaStart.col, colOffsets())
@@ -180,7 +204,7 @@ export default function GridControls(props: GridControlsProps) {
       ...selectedCells,
       ...newSelected,
     };
-    props.onCellSelection(selectedCells);
+    setSelectedCells(selectedCells);
     lastCell = null;
   }
 
@@ -188,26 +212,26 @@ export default function GridControls(props: GridControlsProps) {
     const cursor = getMousePosition(ev);
 
     c.col = computeFirstVisibleColumn(
-      props.scroll.x + cursor.x - canvasRect().x,
+      scroll().x + cursor.x - canvasRect().x,
     ).index;
     c.row = computeFirstVisibleRow(
-      props.scroll.y + cursor.y - canvasRect().y,
+      scroll().y + cursor.y - canvasRect().y,
     ).index;
 
-    positionSelection(c);
+    positionCell(c);
 
     return c;
   }
 
-  function positionSelection(c: Cell) {
+  function positionCell(c: Cell) {
     c.x =
       (c.col - firstCol.index) * CELL_W +
-      props.scroll.x +
+      scroll().x +
       totalOffsetsRange(firstCol.index, c.col - 1, colOffsets()) -
       firstCol.remainder;
     c.y =
       (c.row - firstRow.index) * CELL_H +
-      props.scroll.y +
+      scroll().y +
       totalOffsetsRange(firstRow.index, c.row - 1, rowOffsets()) -
       firstRow.remainder;
   }
@@ -220,8 +244,8 @@ export default function GridControls(props: GridControlsProps) {
     setInputCellElem.byRef((pos) => {
       getCellAtCursor(ev, inputCell);
       pos.id = getCellId(inputCell.col, inputCell.row);
-      pos.x = inputCell.x + offsetX - props.scroll.x;
-      pos.y = inputCell.y + offsetY - props.scroll.y;
+      pos.x = inputCell.x + offsetX - scroll().x;
+      pos.y = inputCell.y + offsetY - scroll().y;
       pos.width = getEffectiveCellWidth(inputCell.col);
       pos.height = getEffectiveCellHeight(inputCell.row);
       cellInput.focus();
@@ -250,7 +274,7 @@ export default function GridControls(props: GridControlsProps) {
               }
         }
         on:scroll={(ev) =>
-          props.onScroll({
+          setScroll({
             x: ev.currentTarget.scrollLeft,
             y: ev.currentTarget.scrollTop,
           })
@@ -280,9 +304,7 @@ export default function GridControls(props: GridControlsProps) {
         <textarea
           $ref={cellInput}
           class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
-          on:change={(e) => {
-            props.onCellInput(inputCell, e.currentTarget.value);
-          }}
+          on:change={(e) => addCustomCell(e.currentTarget.value)}
         />
         <strong class="absolute -top-7 -left-1 p-1">
           {inputCellElem().id}

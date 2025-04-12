@@ -1,7 +1,17 @@
 import { watch, ref } from "jsx";
-import { CELL_H, CELL_W } from "./utils";
+import { CELL_H, CELL_W } from "./config";
+import { initInstances } from "./instance";
+import type { CellMap, PartialCell } from "./types";
+import { Mat4 } from "./math";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
+
+export const [scroll, setScroll] = ref({ x: 0, y: 0 });
+export const [touchSelection, setTouchSelection] = ref(false);
+export const [selectedCells, setSelectedCells] = ref<CellMap>({});
+export const [customCells, setCustomCells] = ref<CellMap>({});
+export const [instances, setInstances] = ref(initInstances(10));
+export const [projection, setProjection] = ref(Mat4.identity());
 
 export const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,
@@ -60,11 +70,6 @@ export function computeFirstVisible(
   const defaultCells = Math.floor((scroll - cum) / cellSize);
   return { index: i + defaultCells, remainder: (scroll - cum) % cellSize };
 }
-
-export type PartialCell = {
-  index: number;
-  remainder: number;
-};
 
 export function computeFirstVisibleColumn(scrollX: number): PartialCell {
   return computeFirstVisible(

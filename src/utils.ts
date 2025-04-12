@@ -1,27 +1,5 @@
-export type Color = Tuple<number, 4>;
-
-export type Pos2D = { x: number; y: number };
-
-export type Quad = {
-  text?: string;
-  width: number;
-  height: number;
-} & Pos2D;
-
-export type Cell = {
-  col: number;
-  row: number;
-} & Pos2D;
-
-export type CellMap = Record<number, Quad>;
-export type PartialCellMap = Record<number, Partial<Quad>>;
-export type OffsetMap = Record<number, number>;
-
-export const MAX_COLS = 9e4;
-export const MAX_ROWS = 2e5;
-
-export const CELL_W = 100;
-export const CELL_H = 30;
+import { MAX_COLS } from "./config";
+import type { OffsetMap, Pos2D } from "./types";
 
 export const [toAlphaUpper, fromAlphaUpper] = asciiNumParser(
   26,
@@ -64,16 +42,6 @@ export function totalOffsetsRange(
 export function totalOffsets(offsets: OffsetMap) {
   return Object.values(offsets).reduce((cum, n) => cum + n, 0);
 }
-
-export type Tuple<
-  T,
-  N extends number,
-  R extends T[] = [],
-> = R["length"] extends N ? R : Tuple<T, N, [...R, T]>;
-
-export type KeysWithValue<T, V> = keyof {
-  [K in keyof T as T[K] extends V ? K : never]: T[K];
-};
 
 export const isTouchscreen = navigator.maxTouchPoints > 0;
 

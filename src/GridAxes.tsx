@@ -1,5 +1,6 @@
 import { ref, watchFn } from "jsx";
 import For from "jsx/components/For";
+import Dbg from "./Dbg";
 import {
   canvasRect,
   colOffsets,
@@ -8,20 +9,18 @@ import {
   getEffectiveCellHeight,
   getEffectiveCellWidth,
   rowOffsets,
+  scroll,
   setColOffsets,
   setRowOffsets,
 } from "./state";
 import {
-  type Pos2D,
   toAlphaUpper,
   toAlphaLower,
   fromAlphaUpper,
   getMousePosition,
   fromAlphaLower,
-  CELL_W,
-  CELL_H,
 } from "./utils";
-import Dbg from "./Dbg";
+import { CELL_W, CELL_H } from "./config";
 
 const RESIZE_STYLE = "absolute z-1";
 const CELL_HEADER_DARK =
@@ -30,11 +29,7 @@ const CELL_HEADER_LIGHT =
   "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 active:bg-indigo-900 hover:text-zinc-200 active:text-zinc-200";
 const CELL_HEADER_STYLE = `relative border ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
 
-type GridAxesProps = {
-  scroll: Pos2D;
-};
-
-export default function GridAxes(props: GridAxesProps) {
+export default function GridAxes() {
   const [cellKeys, setCellKeys] = ref({
     cols: [] as string[],
     rows: [] as string[],
@@ -59,11 +54,11 @@ export default function GridAxes(props: GridAxesProps) {
   }
 
   watchFn(
-    () => [canvasRect(), props.scroll, colOffsets(), rowOffsets()],
+    () => [canvasRect(), scroll(), colOffsets(), rowOffsets()],
     () => {
       const { width, height } = canvasRect();
-      const { index: firstCol } = computeFirstVisibleColumn(props.scroll.x);
-      const { index: firstRow } = computeFirstVisibleRow(props.scroll.y);
+      const { index: firstCol } = computeFirstVisibleColumn(scroll().x);
+      const { index: firstRow } = computeFirstVisibleRow(scroll().y);
       if (firstCol < 0 && firstRow < 0) return;
 
       const colCount = computeVisibleRange(
@@ -129,22 +124,22 @@ export default function GridAxes(props: GridAxesProps) {
     resizedRow = -1;
   }
 
-  let lastScrollX = props.scroll.x;
-  let lastScrollY = props.scroll.x;
+  let lastScrollX = scroll().x;
+  let lastScrollY = scroll().x;
   const [headerOffset, setHeaderOffset] = ref(0);
   const [asideOffset, setAsideOffset] = ref(0);
   watchFn(
-    () => props.scroll,
+    () => scroll(),
     () => {
-      if (props.scroll.x !== lastScrollX) {
-        const offset = computeFirstVisibleColumn(props.scroll.x).remainder;
+      if (scroll().x !== lastScrollX) {
+        const offset = computeFirstVisibleColumn(scroll().x).remainder;
         if (offset >= 0) setHeaderOffset(offset);
-        lastScrollX = props.scroll.x;
+        lastScrollX = scroll().x;
       }
-      if (props.scroll.y !== lastScrollY) {
-        const offset = computeFirstVisibleRow(props.scroll.y).remainder;
+      if (scroll().y !== lastScrollY) {
+        const offset = computeFirstVisibleRow(scroll().y).remainder;
         if (offset >= 0) setAsideOffset(offset);
-        lastScrollY = props.scroll.y;
+        lastScrollY = scroll().y;
       }
     },
   );
@@ -163,6 +158,7 @@ export default function GridAxes(props: GridAxesProps) {
 
   return (
     <>
+      <div class="relative dark:bg-zinc-800 bg-zinc-200 z-11" />
       <header
         class="relative overflow-visible max-w-dvw whitespace-nowrap z-10 select-none"
         style:left={`-${headerOffset()}px`}

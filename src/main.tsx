@@ -1,9 +1,16 @@
 import { ref } from "jsx";
-import Grid from "./Grid";
+import Canvas from "./Canvas";
 import { DbgDialog } from "./Dbg";
-import { prefersDark, setPrefersDark, canvasRect } from "./state";
-import { touchSelection, setTouchSelection } from "./GridControls";
+import {
+  prefersDark,
+  setPrefersDark,
+  canvasRect,
+  setTouchSelection,
+  touchSelection,
+} from "./state";
+import GridControls from "./GridControls";
 import { isTouchscreen } from "./utils";
+import GridAxes from "./GridAxes";
 
 const [dbg, setDbg] = ref(false);
 
@@ -48,6 +55,10 @@ document.body.prepend(
         <i>{prefersDark() ? "" : ""}</i>
       </button>
     </header>
-    <Grid />
+    <article class="font-mono overflow-hidden max-w-dvw max-h-dvh grid grid-rows-[auto_minmax(0,1fr)] grid-cols-[max-content_minmax(0,1fr)]">
+      <GridAxes />
+      <GridControls />
+      <Canvas />
+    </article>
   </main>,
 );
