@@ -14,5 +14,5 @@ export const COLOR_CELL_LIGHT: Color = [0.98, 0.98, 0.98, 1.0]; // zinc-50 #fafa
 export const MAX_COLS = 9e4;
 export const MAX_ROWS = 2e5;
 
-export const CELL_W = 100;
-export const CELL_H = 30;
+export const CELL_W = 99;
+export const CELL_H = 33;
