@@ -10,8 +10,11 @@ import {
   getEffectiveCellWidth,
   rowOffsets,
   scroll,
+  scrollEl,
+  selectedCols,
   setColOffsets,
   setRowOffsets,
+  setSelectedCols,
 } from "./state";
 import {
   toAlphaUpper,
@@ -147,7 +150,6 @@ export default function GridAxes() {
   // TODO: on cell header click select whole row or column
   // Every key represents the id of the selected column, every value represents
   // the cells of that column that are unselected
-  const [selectedCols, setSelectedCols] = ref<Record<number, number[]>>({});
   function selectCol(ev: MouseEvent | TouchEvent, col: number) {
     if (ev.target !== ev.currentTarget) return;
     setSelectedCols.byRef((cols) => {
@@ -158,7 +160,17 @@ export default function GridAxes() {
 
   return (
     <>
-      <div class="relative dark:bg-zinc-800 bg-zinc-200 z-11" />
+      <button
+        class="relative dark:bg-zinc-800 bg-zinc-200 z-11"
+        data-icon
+        type="button"
+        title="Go to the 1st cell"
+        on:click={() =>
+          scrollEl().scrollTo({ top: 0, left: 0, behavior: "smooth" })
+        }
+      >
+        
+      </button>
       <header
         class="relative overflow-visible max-w-dvw whitespace-nowrap z-10 select-none"
         style:left={`-${headerOffset()}px`}

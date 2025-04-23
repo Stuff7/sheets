@@ -6,10 +6,14 @@ import { Mat4 } from "./math";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
 
+export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
 export const [touchSelection, setTouchSelection] = ref(false);
 export const [selectedCells, setSelectedCells] = ref<CellMap>({});
 export const [customCells, setCustomCells] = ref<CellMap>({});
+export const [selectedCols, setSelectedCols] = ref<Record<number, number[]>>(
+  {},
+);
 export const [instances, setInstances] = ref(initInstances(10));
 export const [projection, setProjection] = ref(Mat4.identity());
 

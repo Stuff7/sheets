@@ -18,6 +18,7 @@ import {
   scroll,
   setCustomCells,
   setScroll,
+  setScrollEl,
   setSelectedCells,
   touchSelection,
 } from "./state";
@@ -179,12 +180,12 @@ export default function GridControls() {
   function positionSelection(cellIdx: number, col: number, row: number) {
     const offsetX =
       areaStart.col > col
-        ? -totalOffsetsRange(col, areaStart.col, colOffsets())
+        ? -totalOffsetsRange(col, areaStart.col - 1, colOffsets())
         : totalOffsetsRange(areaStart.col, col - 1, colOffsets());
 
     const offsetY =
       areaStart.row > row
-        ? -totalOffsetsRange(row, areaStart.row, rowOffsets())
+        ? -totalOffsetsRange(row, areaStart.row - 1, rowOffsets())
         : totalOffsetsRange(areaStart.row, row - 1, rowOffsets());
 
     newSelected[cellIdx] = {
@@ -255,6 +256,7 @@ export default function GridControls() {
   return (
     <>
       <div
+        $refFn={setScrollEl}
         class="absolute right-0 bottom-0"
         class:overflow-auto={!touchSelection()}
         style:width={`${canvasRect().width}px`}

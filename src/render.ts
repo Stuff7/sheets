@@ -71,7 +71,7 @@ watchOnly(
     const firstCol = computeFirstVisibleColumn(scroll().x);
     const firstRow = computeFirstVisibleRow(scroll().y);
     let numSelected = 0;
-    let numTexts = 0;
+    let numCustoms = 0;
     const selected: CellMap = {};
     const textCells: CellMap = {};
     for (let r = firstRow.index; r < firstRow.index + rows; r++) {
@@ -83,13 +83,13 @@ watchOnly(
         }
         if (idx in customCells()) {
           textCells[idx] = customCells()[idx];
-          numTexts++;
+          numCustoms++;
         }
       }
     }
 
     setInstances.byRef((inst) => {
-      const numCells = numSelected + numTexts;
+      const numCells = numSelected + numCustoms;
       inst.resize(rows + cols + numCells);
 
       for (let i = 0; i < cols; i++) {
@@ -101,7 +101,7 @@ watchOnly(
           model,
           i * CELL_W + scroll().x + offset - firstCol.remainder,
           offsetY,
-          0,
+          10,
         );
         inst.colorAt(i).set(lineColor);
         inst.hasUVAt(i)[0] = 0;
@@ -116,14 +116,15 @@ watchOnly(
           model,
           offsetX,
           i * CELL_H + scroll().y + offset - firstRow.remainder,
-          0,
+          10,
         );
         inst.colorAt(i + cols).set(lineColor);
         inst.hasUVAt(i + cols)[0] = 0;
       }
 
       drawCellMap(inst, textCells, rows + cols, cellColor);
-      drawCellMap(inst, selected, rows + cols + numTexts, cellColor, 1);
+      drawCellMap(inst, selected, rows + cols + numCustoms, cellColor, 1);
+      drawCellMap(inst, selected, rows + cols + numCustoms, cellColor, 1);
 
       resizeInstances(inst.data);
     });
