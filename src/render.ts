@@ -20,7 +20,8 @@ import {
   prefersDark,
   rowOffsets,
   scroll,
-  selectedCells,
+  selectedQuads,
+  selectedRegions,
   setCustomCells,
   setInstances,
 } from "./state";
@@ -35,6 +36,7 @@ import type { Instances } from "./instance";
 import { Mat4 } from "./math";
 import { watchOnly } from "jsx";
 import { getGL, resizeInstances } from "./Canvas";
+import { parseRange, rangesOverlap } from "./gridArea";
 
 let atlas!: Atlas;
 const tiles: TileMap = {};
@@ -42,7 +44,7 @@ const tiles: TileMap = {};
 watchOnly(
   [
     canvasRect,
-    selectedCells,
+    selectedQuads,
     customCells,
     colOffsets,
     rowOffsets,
@@ -70,17 +72,30 @@ watchOnly(
     // Only render instances in view
     const firstCol = computeFirstVisibleColumn(scroll().x);
     const firstRow = computeFirstVisibleRow(scroll().y);
-    let numSelected = 0;
     let numCustoms = 0;
-    const selected: CellMap = {};
+    let numSelQuads = 0;
     const textCells: CellMap = {};
+    const visibleRange = {
+      startCol: firstCol.index,
+      startRow: firstRow.index,
+      endCol: firstCol.index + cols,
+      endRow: firstRow.index + rows,
+    };
+
+    let i = 0;
+    const selRegions: number[] = [];
+    for (const r of selectedRegions()) {
+      const range = parseRange(r);
+      if (rangesOverlap(range, visibleRange)) {
+        selRegions.push(...selectedQuads().slice(i, i + 4));
+        numSelQuads++;
+      }
+      i += 4;
+    }
+
     for (let r = firstRow.index; r < firstRow.index + rows; r++) {
       for (let c = firstCol.index; c < firstCol.index + cols; c++) {
         const idx = getCellIdx(c, r);
-        if (idx in selectedCells()) {
-          selected[idx] = selectedCells()[idx];
-          numSelected++;
-        }
         if (idx in customCells()) {
           textCells[idx] = customCells()[idx];
           numCustoms++;
@@ -89,7 +104,7 @@ watchOnly(
     }
 
     setInstances.byRef((inst) => {
-      const numCells = numSelected + numCustoms;
+      const numCells = numSelQuads + numCustoms;
       inst.resize(rows + cols + numCells);
 
       for (let i = 0; i < cols; i++) {
@@ -123,13 +138,34 @@ watchOnly(
       }
 
       drawCellMap(inst, textCells, rows + cols, cellColor);
-      drawCellMap(inst, selected, rows + cols + numCustoms, cellColor, 1);
-      drawCellMap(inst, selected, rows + cols + numCustoms, cellColor, 1);
+      drawRegions(inst, selRegions, rows + cols + numCustoms, 1);
 
       resizeInstances(inst.data);
     });
   },
 );
+
+export function drawRegions(
+  inst: Instances,
+  cellMap: number[],
+  offset: number,
+  z = 0,
+) {
+  let i = offset;
+  for (let n = 0; n < cellMap.length; n += 4) {
+    const [x, y, w, h] = cellMap.slice(n, n + 4);
+    const color = prefersDark()
+      ? COLOR_SELECTED_CELL_DARK
+      : COLOR_SELECTED_CELL_LIGHT;
+    inst.hasUVAt(i)[0] = 0;
+    inst.colorAt(i).set(color);
+
+    const model = inst.modelAt(i);
+    Mat4.scaleIdentity(model, w, h, 1);
+    Mat4.translateTo(model, x, y, z);
+    i++;
+  }
+}
 
 function drawCellMap(
   inst: Instances,

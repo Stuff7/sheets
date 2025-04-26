@@ -7,7 +7,6 @@ import {
   canvasRect,
   scroll,
   setProjection,
-  selectedCells,
   customCells,
 } from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
@@ -94,7 +93,6 @@ export default function Canvas() {
           Projection: <br />
           {Mat4.toString(projection())}
         </p>
-        <p>SelectedCells: {JSON.stringify(selectedCells())}</p>
         <p>Cells: {JSON.stringify(customCells())}</p>
         <p>
           Scroll: {scroll().x} {scroll().y}

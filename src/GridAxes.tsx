@@ -11,10 +11,10 @@ import {
   rowOffsets,
   scroll,
   scrollEl,
-  selectedCols,
+  setLastSelectedRegions,
   setColOffsets,
   setRowOffsets,
-  setSelectedCols,
+  ctrlPressed,
 } from "./state";
 import {
   toAlphaUpper,
@@ -23,7 +23,8 @@ import {
   getMousePosition,
   fromAlphaLower,
 } from "./utils";
-import { CELL_W, CELL_H } from "./config";
+import { CELL_W, CELL_H, MAX_ROWS, MAX_COLS } from "./config";
+import { carveRange } from "./gridArea";
 
 const RESIZE_STYLE = "absolute z-1";
 const CELL_HEADER_DARK =
@@ -147,14 +148,19 @@ export default function GridAxes() {
     },
   );
 
-  // TODO: on cell header click select whole row or column
-  // Every key represents the id of the selected column, every value represents
-  // the cells of that column that are unselected
   function selectCol(ev: MouseEvent | TouchEvent, col: number) {
     if (ev.target !== ev.currentTarget) return;
-    setSelectedCols.byRef((cols) => {
-      if (cols[col]) delete cols[col];
-      else cols[col] = [];
+    setLastSelectedRegions.byRef((sel) => {
+      if (!ctrlPressed()) sel.clear();
+      carveRange(sel, col, 0, col, MAX_ROWS);
+    });
+  }
+
+  function selectRow(ev: MouseEvent | TouchEvent, row: number) {
+    if (ev.target !== ev.currentTarget) return;
+    setLastSelectedRegions.byRef((sel) => {
+      if (!ctrlPressed()) sel.clear();
+      carveRange(sel, 0, row, MAX_COLS, row);
     });
   }
 
@@ -212,6 +218,7 @@ export default function GridAxes() {
             <button
               type="button"
               class={`block w-full px-2 min-w-[56.5px] ${CELL_HEADER_STYLE}`}
+              on:click={(ev) => selectRow(ev, fromAlphaLower(row()))}
               style:height={`${getEffectiveCellHeight(fromAlphaLower(row()))}px`}
             >
               {row()}
@@ -235,7 +242,6 @@ export default function GridAxes() {
       <Dbg>
         <p>ColOffsets: {JSON.stringify(colOffsets())}</p>
         <p>RowOffsets: {JSON.stringify(rowOffsets())}</p>
-        <p>SelectedCols: {JSON.stringify(selectedCols())}</p>
       </Dbg>
     </>
   );

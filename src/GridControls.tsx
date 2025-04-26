@@ -16,21 +16,26 @@ import {
   getEffectiveCellWidth,
   rowOffsets,
   scroll,
-  setCustomCells,
+  selectedRegions,
+  selectedQuads,
   setScroll,
   setScrollEl,
-  setSelectedCells,
+  setSelectedRegions,
+  setSelectedQuads,
   touchSelection,
+  ctrlPressed,
+  setLastSelectedRegions,
+  lastSelectedRegions,
 } from "./state";
 import Dbg from "./Dbg";
-import type { Cell, CellMap, PartialCell } from "./types";
+import type { Cell, PartialCell } from "./types";
 import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
 import { addText } from "./render";
+import { parseRange, rangeToQuad, carveRange } from "./gridArea";
 
 export default function GridControls() {
   let cellInput!: HTMLTextAreaElement;
   let isSelecting = false;
-  let ctrlPressed = isTouchscreen;
   let firstCol: PartialCell;
   let firstRow: PartialCell;
 
@@ -54,28 +59,13 @@ export default function GridControls() {
     },
   );
 
-  queueMicrotask(() => {
-    setSelectedCells({
-      0: {
-        x: 0,
-        y: 0,
-        width: CELL_W,
-        height: CELL_H,
-        text: "",
-      },
-    });
-  });
-
   function doSelection(ev: MouseEvent | TouchEvent) {
     if (!isSelecting) return;
     updateSelection(ev);
   }
 
   let hasDragged = false;
-  let selectedCells: CellMap = {};
-  let newSelected: CellMap = {};
   let lastCell: Cell | null = null;
-  let initialSelectedCells: CellMap = {};
 
   function startSelection(ev: MouseEvent | TouchEvent) {
     if (isTouchscreen && !touchSelection()) return;
@@ -90,7 +80,6 @@ export default function GridControls() {
       areaTop = { ...areaStart };
     }
 
-    initialSelectedCells = { ...selectedCells };
     hasDragged = false;
     updateSelection(ev);
     isSelecting = true;
@@ -117,29 +106,10 @@ export default function GridControls() {
     const startRow = Math.min(areaStart.row, areaEnd.row);
     const endRow = Math.max(areaStart.row, areaEnd.row);
 
-    if (!ctrlPressed) {
-      selectedCells = {};
-      initialSelectedCells = {};
-    }
-    newSelected = { ...initialSelectedCells };
-
-    for (let row = startRow; row <= endRow; row++) {
-      for (let col = startCol; col <= endCol; col++) {
-        const cellIdx = row * MAX_COLS + col;
-
-        if (selectedCells[cellIdx] || newSelected[cellIdx]) {
-          delete selectedCells[cellIdx];
-          delete newSelected[cellIdx];
-          continue;
-        }
-        positionSelection(cellIdx, col, row);
-      }
-    }
-
-    setSelectedCells({
-      ...selectedCells,
-      ...newSelected,
-    });
+    if (!ctrlPressed()) setLastSelectedRegions.byRef((sel) => sel.clear());
+    const sel = new Set(lastSelectedRegions());
+    carveRange(sel, startCol, startRow, endCol, endRow);
+    setSelectedRegions(sel);
   }
 
   const customCellPositions: Record<number, Cell> = {};
@@ -149,64 +119,29 @@ export default function GridControls() {
     customCellPositions[getCellIdx(inputCell.col, inputCell.row)] = inputCell;
   }
 
-  watchOnly([colOffsets, rowOffsets], (c) => {
-    areaStart = { ...(c === colOffsets() ? areaLeft : areaTop) };
-    positionCell(areaStart);
-    selectedCells = {
-      ...selectedCells,
-      ...newSelected,
-    };
-    for (const key in selectedCells) {
-      const idx = +key;
-      const col = idx % MAX_COLS;
-      const row = Math.floor(idx / MAX_COLS);
-      positionSelection(idx, col, row);
+  watchOnly([selectedRegions, colOffsets, rowOffsets], (c) => {
+    if (!(c instanceof Set)) {
+      areaStart = { ...(c === colOffsets() ? areaLeft : areaTop) };
+      positionCell(areaStart);
     }
-    setSelectedCells(selectedCells);
 
-    setCustomCells.byRef((cells) => {
-      for (const k in customCellPositions) {
-        const pos = customCellPositions[k];
-        pos.x = pos.x + canvasRect().x - scroll().x;
-        pos.y = pos.y + canvasRect().y - scroll().y;
-        positionCell(pos);
-        const cell = cells[k];
-        cell.x = pos.x;
-        cell.y = pos.y;
+    setSelectedQuads.byRef((quads) => {
+      quads.length = 0;
+      for (const r of selectedRegions()) {
+        quads.push(...rangeToQuad(parseRange(r)));
       }
     });
   });
 
-  function positionSelection(cellIdx: number, col: number, row: number) {
-    const offsetX =
-      areaStart.col > col
-        ? -totalOffsetsRange(col, areaStart.col - 1, colOffsets())
-        : totalOffsetsRange(areaStart.col, col - 1, colOffsets());
-
-    const offsetY =
-      areaStart.row > row
-        ? -totalOffsetsRange(row, areaStart.row - 1, rowOffsets())
-        : totalOffsetsRange(areaStart.row, row - 1, rowOffsets());
-
-    newSelected[cellIdx] = {
-      text: "",
-      width: getEffectiveCellWidth(col),
-      height: getEffectiveCellHeight(row),
-      x: areaStart.x + (col - areaStart.col) * CELL_W + offsetX,
-      y: areaStart.y + (row - areaStart.row) * CELL_H + offsetY,
-    };
-  }
+  watchOnly([lastSelectedRegions], () =>
+    setSelectedRegions(new Set(lastSelectedRegions())),
+  );
 
   function endSelection() {
     if (!isSelecting) return;
     if (isTouchscreen && !touchSelection()) return;
     isSelecting = false;
-    selectedCells = {
-      ...selectedCells,
-      ...newSelected,
-    };
-    setSelectedCells(selectedCells);
-    lastCell = null;
+    setLastSelectedRegions(new Set(selectedRegions()));
   }
 
   function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
@@ -261,20 +196,6 @@ export default function GridControls() {
         class:overflow-auto={!touchSelection()}
         style:width={`${canvasRect().width}px`}
         style:height={`${canvasRect().height}px`}
-        g:onkeydown={
-          isTouchscreen
-            ? undefined
-            : (e) => {
-                if (e.key === "Control") ctrlPressed = true;
-              }
-        }
-        g:onkeyup={
-          isTouchscreen
-            ? undefined
-            : (e) => {
-                if (e.key === "Control") ctrlPressed = false;
-              }
-        }
         on:scroll={(ev) =>
           setScroll({
             x: ev.currentTarget.scrollLeft,
@@ -314,6 +235,8 @@ export default function GridControls() {
       </label>
       <Dbg>
         <p>Input: {isCellInputVisible()}</p>
+        <p>selRegions: {JSON.stringify([...selectedRegions()], null, 2)}</p>
+        <p>selQuads: {JSON.stringify(selectedQuads(), null, 2)}</p>
       </Dbg>
     </>
   );

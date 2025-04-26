@@ -3,17 +3,20 @@ import { CELL_H, CELL_W } from "./config";
 import { initInstances } from "./instance";
 import type { CellMap, PartialCell } from "./types";
 import { Mat4 } from "./math";
+import { isTouchscreen } from "./utils";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
 
+export const [ctrlPressed, setCtrlPressed] = ref(isTouchscreen);
 export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
 export const [touchSelection, setTouchSelection] = ref(false);
-export const [selectedCells, setSelectedCells] = ref<CellMap>({});
-export const [customCells, setCustomCells] = ref<CellMap>({});
-export const [selectedCols, setSelectedCols] = ref<Record<number, number[]>>(
-  {},
+export const [lastSelectedRegions, setLastSelectedRegions] = ref(
+  new Set<string>(),
 );
+export const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
+export const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
+export const [customCells, setCustomCells] = ref<CellMap>({});
 export const [instances, setInstances] = ref(initInstances(10));
 export const [projection, setProjection] = ref(Mat4.identity());
 
