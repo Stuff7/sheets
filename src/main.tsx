@@ -1,6 +1,6 @@
 import { ref } from "jsx";
 import Canvas from "./Canvas";
-import { DbgDialog } from "./Dbg";
+import Dialog from "./Dialog";
 import {
   prefersDark,
   setPrefersDark,
@@ -14,13 +14,23 @@ import {
 import GridControls from "./GridControls";
 import { isTouchscreen } from "./utils";
 import GridAxes from "./GridAxes";
-import { serializeRange } from "./gridArea";
+import { serializeRegion } from "./region";
 import { MAX_COLS, MAX_ROWS } from "./config";
+import CellColorPicker from "./CellColorPicker";
 
 const [dbg, setDbg] = ref(false);
 
 document.body.append(
-  <DbgDialog open={dbg()} x={100} y={100} draggable onClose={setDbg} />,
+  <Dialog
+    class="min-w-sm"
+    title="Debug"
+    id="dbg"
+    open={dbg()}
+    x={100}
+    y={100}
+    draggable
+    onClose={setDbg}
+  />,
 );
 
 function onKeyDown(ev: KeyboardEvent) {
@@ -32,7 +42,7 @@ function onKeyDown(ev: KeyboardEvent) {
     setLastSelectedRegions.byRef((sel) => {
       sel.clear();
       sel.add(
-        serializeRange({
+        serializeRegion({
           startCol: 0,
           startRow: 0,
           endCol: MAX_COLS,
@@ -55,7 +65,7 @@ document.body.prepend(
     g:onkeydown={onKeyDown}
     g:onkeyup={onKeyUp}
   >
-    <header class="grid grid-cols-[1fr_repeat(3,auto)] gap-2 w-full p-2 bg-stone-300 text-zinc-900 dark:bg-zinc-950 dark:text-stone-100">
+    <header class="grid grid-cols-[1fr_repeat(4,auto)] items-center gap-2 w-full p-2 bg-stone-300 text-zinc-900 dark:bg-zinc-950 dark:text-stone-100">
       <h1 class="text-black text-xl text-inherit">Sheets</h1>
       <button
         $if={isTouchscreen}
@@ -65,6 +75,7 @@ document.body.prepend(
       >
         {touchSelection() ? "Selecting" : "Select"}
       </button>
+      <CellColorPicker />
       <span class:overflow-hidden>
         <em>
           Press{" "}

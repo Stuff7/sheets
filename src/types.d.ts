@@ -8,6 +8,10 @@ export type KeysWithValue<T, V> = keyof {
   [K in keyof T as T[K] extends V ? K : never]: T[K];
 };
 
+export type JsxEv<Ev extends Event, El extends Element> = Ev & {
+  currentTarget: El;
+};
+
 export type Color = Tuple<number, 4>;
 
 export type Pos2D = { x: number; y: number };

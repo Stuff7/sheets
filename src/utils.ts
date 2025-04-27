@@ -1,5 +1,5 @@
 import { MAX_COLS } from "./config";
-import type { OffsetMap, Pos2D } from "./types";
+import type { Color, OffsetMap, Pos2D } from "./types";
 
 export const [toAlphaUpper, fromAlphaUpper] = asciiNumParser(
   26,
@@ -105,4 +105,22 @@ export function getRelativeMousePosition(ev: MouseEvent | TouchEvent) {
   const y = clientPos.y - rect.top;
 
   return { x, y };
+}
+
+export function hexToRgba(hexColor: string): Color {
+  let hex = hexColor[0] === "#" ? hexColor.slice(1) : hexColor;
+
+  if (hex.length === 3 || hex.length === 4) {
+    hex = hex
+      .split("")
+      .map((x) => x + x)
+      .join("");
+  }
+
+  const r = Number.parseInt(hex.slice(0, 2), 16) / 256;
+  const g = Number.parseInt(hex.slice(2, 4), 16) / 256;
+  const b = Number.parseInt(hex.slice(4, 6), 16) / 256;
+  const a = hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1;
+
+  return [r, g, b, a];
 }

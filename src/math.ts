@@ -140,3 +140,7 @@ export const Vec = {
     return result.trim();
   },
 };
+
+export function clamp(min: number, n: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}

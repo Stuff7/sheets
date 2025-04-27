@@ -4,7 +4,8 @@ import {
   INST_STRIDE,
   VERT_STRIDE,
 } from "./instance";
-import { aligned2, type KeysWithValue } from "./utils";
+import { aligned2 } from "./utils";
+import type { KeysWithValue } from "./types";
 import { loadTextureAtlas } from "./texture";
 
 export function compileShader(

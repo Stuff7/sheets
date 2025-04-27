@@ -1,4 +1,5 @@
 import type { Color } from "./types";
+import { hexToRgba } from "./utils";
 
 export const GRID_LINE_SIZE = 1;
 
@@ -8,8 +9,10 @@ export const COLOR_GRID_LINE_LIGHT: Color = [0.89, 0.89, 0.91, 1.0]; // zinc-200
 export const COLOR_SELECTED_CELL_DARK: Color = [0.2, 0.83, 0.6, 0.4]; // emerald-400/40 #34d399
 export const COLOR_SELECTED_CELL_LIGHT: Color = [0.31, 0.27, 0.9, 0.6]; // indigo-600/40 #4f46e5
 
-export const COLOR_CELL_DARK: Color = [0.09, 0.09, 0.11, 1.0]; // zinc-900 #18181b
-export const COLOR_CELL_LIGHT: Color = [0.98, 0.98, 0.98, 1.0]; // zinc-50 #fafafa
+export const COLOR_CELL_DARK_HEX = "#18181b"; // zinc-900
+export const COLOR_CELL_LIGHT_HEX = "#fafafa"; // zinc-50
+export const COLOR_CELL_DARK = hexToRgba(COLOR_CELL_DARK_HEX);
+export const COLOR_CELL_LIGHT = hexToRgba(COLOR_CELL_LIGHT_HEX);
 
 export const MAX_COLS = 9e4;
 export const MAX_ROWS = 2e5;

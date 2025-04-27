@@ -10,20 +10,22 @@ import {
   CELL_H,
   CELL_W,
 } from "./config";
-import { aligned, getCellIdx, totalOffsetsRange } from "./utils";
+import { aligned, getCellIdx, totalOffsetsRange, hexToRgba } from "./utils";
 import {
   canvasRect,
   colOffsets,
   computeFirstVisibleColumn,
   computeFirstVisibleRow,
-  customCells,
+  textCells,
   prefersDark,
   rowOffsets,
   scroll,
   selectedQuads,
   selectedRegions,
-  setCustomCells,
+  setTextCells,
   setInstances,
+  colorQuads,
+  colorRegions,
 } from "./state";
 import {
   createTextureAtlas,
@@ -36,7 +38,7 @@ import type { Instances } from "./instance";
 import { Mat4 } from "./math";
 import { watchOnly } from "jsx";
 import { getGL, resizeInstances } from "./Canvas";
-import { parseRange, rangesOverlap } from "./gridArea";
+import { parseRegion, regionsOverlap } from "./region";
 
 let atlas!: Atlas;
 const tiles: TileMap = {};
@@ -45,7 +47,8 @@ watchOnly(
   [
     canvasRect,
     selectedQuads,
-    customCells,
+    colorQuads,
+    textCells,
     colOffsets,
     rowOffsets,
     scroll,
@@ -72,9 +75,8 @@ watchOnly(
     // Only render instances in view
     const firstCol = computeFirstVisibleColumn(scroll().x);
     const firstRow = computeFirstVisibleRow(scroll().y);
-    let numCustoms = 0;
-    let numSelQuads = 0;
-    const textCells: CellMap = {};
+    let numTexts = 0;
+    const texts: CellMap = {};
     const visibleRange = {
       startCol: firstCol.index,
       startRow: firstRow.index,
@@ -82,31 +84,57 @@ watchOnly(
       endRow: firstRow.index + rows,
     };
 
-    let i = 0;
-    const selRegions: number[] = [];
-    for (const r of selectedRegions()) {
-      const range = parseRange(r);
-      if (rangesOverlap(range, visibleRange)) {
-        selRegions.push(...selectedQuads().slice(i, i + 4));
-        numSelQuads++;
+    const filterVisibleRegions = (
+      regions: Set<string>,
+      quads: number[],
+    ): [number[], number] => {
+      let i = 0;
+      let numQuads = 0;
+      const visibleRegions: number[] = [];
+      for (const r of regions) {
+        const range = parseRegion(r);
+        if (regionsOverlap(range, visibleRange)) {
+          visibleRegions.push(...quads.slice(i, i + 4));
+          numQuads++;
+        }
+        i += 4;
       }
-      i += 4;
+      return [visibleRegions, numQuads];
+    };
+
+    const [selRegions, numSelQuads] = filterVisibleRegions(
+      selectedRegions(),
+      selectedQuads(),
+    );
+    const colors: Record<string, number[]> = {};
+    const numColors: number[] = [];
+    for (const color in colorQuads()) {
+      const quads = colorQuads()[color];
+      const [regions, numRegions] = filterVisibleRegions(
+        colorRegions()[color],
+        quads,
+      );
+      if (numRegions === 0) continue;
+      colors[color] = regions;
+      numColors.push(numRegions);
     }
 
     for (let r = firstRow.index; r < firstRow.index + rows; r++) {
       for (let c = firstCol.index; c < firstCol.index + cols; c++) {
         const idx = getCellIdx(c, r);
-        if (idx in customCells()) {
-          textCells[idx] = customCells()[idx];
-          numCustoms++;
+        if (idx in textCells()) {
+          texts[idx] = textCells()[idx];
+          numTexts++;
         }
       }
     }
 
     setInstances.byRef((inst) => {
-      const numCells = numSelQuads + numCustoms;
+      const numCells =
+        numSelQuads + numTexts + numColors.reduce((t, n) => t + n, 0);
       inst.resize(rows + cols + numCells);
 
+      let instOffset = 0;
       for (let i = 0; i < cols; i++) {
         const colIdx = firstCol.index + i - 1;
         const offset = totalOffsetsRange(firstCol.index, colIdx, colOffsets());
@@ -121,11 +149,12 @@ watchOnly(
         inst.colorAt(i).set(lineColor);
         inst.hasUVAt(i)[0] = 0;
       }
+      instOffset += cols;
 
       for (let i = 0; i < rows; i++) {
         const rowIdx = firstRow.index + i - 1;
         const offset = totalOffsetsRange(firstRow.index, rowIdx, rowOffsets());
-        const model = inst.modelAt(i + cols);
+        const model = inst.modelAt(i + instOffset);
         Mat4.scaleIdentity(model, w, GRID_LINE_SIZE, 1);
         Mat4.translateTo(
           model,
@@ -136,9 +165,19 @@ watchOnly(
         inst.colorAt(i + cols).set(lineColor);
         inst.hasUVAt(i + cols)[0] = 0;
       }
+      instOffset += rows;
 
-      drawCellMap(inst, textCells, rows + cols, cellColor);
-      drawRegions(inst, selRegions, rows + cols + numCustoms, 1);
+      let n = 0;
+      for (const color in colors) {
+        const quads = colors[color];
+        drawRegions(inst, quads, instOffset, hexToRgba(color), n / 10);
+        instOffset += numColors[n++];
+      }
+
+      drawCellMap(inst, texts, instOffset, cellColor, 4);
+      instOffset += numTexts;
+
+      drawRegions(inst, selRegions, instOffset, undefined, 5);
 
       resizeInstances(inst.data);
     });
@@ -149,14 +188,15 @@ export function drawRegions(
   inst: Instances,
   cellMap: number[],
   offset: number,
+  cellColor?: Color,
   z = 0,
 ) {
   let i = offset;
   for (let n = 0; n < cellMap.length; n += 4) {
     const [x, y, w, h] = cellMap.slice(n, n + 4);
-    const color = prefersDark()
-      ? COLOR_SELECTED_CELL_DARK
-      : COLOR_SELECTED_CELL_LIGHT;
+    const color =
+      cellColor ??
+      (prefersDark() ? COLOR_SELECTED_CELL_DARK : COLOR_SELECTED_CELL_LIGHT);
     inst.hasUVAt(i)[0] = 0;
     inst.colorAt(i).set(color);
 
@@ -213,7 +253,7 @@ export async function addText(pos: Cell, value: string) {
     loadTextureAtlas(getGL());
   }
 
-  setCustomCells.byRef((cell) => {
+  setTextCells.byRef((cell) => {
     const c = createCell(cell, getCellIdx(pos.col, pos.row));
     c.text = value;
     c.width = tiles[value].width;

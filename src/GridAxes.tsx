@@ -1,6 +1,5 @@
 import { ref, watchFn } from "jsx";
 import For from "jsx/components/For";
-import Dbg from "./Dbg";
 import {
   canvasRect,
   colOffsets,
@@ -24,7 +23,7 @@ import {
   fromAlphaLower,
 } from "./utils";
 import { CELL_W, CELL_H, MAX_ROWS, MAX_COLS } from "./config";
-import { carveRange } from "./gridArea";
+import { carveRegion } from "./region";
 
 const RESIZE_STYLE = "absolute z-1";
 const CELL_HEADER_DARK =
@@ -152,7 +151,7 @@ export default function GridAxes() {
     if (ev.target !== ev.currentTarget) return;
     setLastSelectedRegions.byRef((sel) => {
       if (!ctrlPressed()) sel.clear();
-      carveRange(sel, col, 0, col, MAX_ROWS);
+      carveRegion(sel, col, 0, col, MAX_ROWS);
     });
   }
 
@@ -160,7 +159,7 @@ export default function GridAxes() {
     if (ev.target !== ev.currentTarget) return;
     setLastSelectedRegions.byRef((sel) => {
       if (!ctrlPressed()) sel.clear();
-      carveRange(sel, 0, row, MAX_COLS, row);
+      carveRegion(sel, 0, row, MAX_COLS, row);
     });
   }
 
@@ -239,10 +238,6 @@ export default function GridAxes() {
           )}
         />
       </aside>
-      <Dbg>
-        <p>ColOffsets: {JSON.stringify(colOffsets())}</p>
-        <p>RowOffsets: {JSON.stringify(rowOffsets())}</p>
-      </Dbg>
     </>
   );
 }

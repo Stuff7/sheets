@@ -1,28 +1,45 @@
 import { watch, ref } from "jsx";
-import { CELL_H, CELL_W } from "./config";
+import {
+  CELL_H,
+  CELL_W,
+  COLOR_CELL_DARK_HEX,
+  COLOR_CELL_LIGHT_HEX,
+} from "./config";
 import { initInstances } from "./instance";
 import type { CellMap, PartialCell } from "./types";
 import { Mat4 } from "./math";
 import { isTouchscreen } from "./utils";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
-
+export const [selectedColor, setSelectedColor] = ref("");
 export const [ctrlPressed, setCtrlPressed] = ref(isTouchscreen);
 export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
 export const [touchSelection, setTouchSelection] = ref(false);
+
 export const [lastSelectedRegions, setLastSelectedRegions] = ref(
   new Set<string>(),
 );
 export const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
 export const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
-export const [customCells, setCustomCells] = ref<CellMap>({});
+export const [colorRegions, setColorRegions] = ref<Record<string, Set<string>>>(
+  {},
+);
+export const [colorQuads, setColorQuads] = ref<Record<string, number[]>>({});
+export const [textCells, setTextCells] = ref<CellMap>({});
 export const [instances, setInstances] = ref(initInstances(10));
 export const [projection, setProjection] = ref(Mat4.identity());
 
 export const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,
 );
+
+export const [defaultCellColor, setDefaultCellColor] = ref<string>();
+watch(() => {
+  setDefaultCellColor(
+    prefersDark() ? COLOR_CELL_DARK_HEX : COLOR_CELL_LIGHT_HEX,
+  );
+});
 
 watch(() => {
   document.documentElement.classList[prefersDark() ? "add" : "remove"]("dark");

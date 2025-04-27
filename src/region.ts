@@ -7,95 +7,121 @@ import {
 } from "./state";
 import { totalOffsetsRange } from "./utils";
 
-export type GridArea = {
+export type Region = {
   startCol: number;
   startRow: number;
   endCol: number;
   endRow: number;
 };
 
-export function addRangeToSet(
+export function addRegionToSet(
   set: Set<string>,
   startCol: number,
   startRow: number,
   endCol: number,
   endRow: number,
 ) {
-  const newRange: GridArea = { startCol, startRow, endCol, endRow };
-  const allRanges = [...set].map(parseRange);
-  allRanges.push(newRange);
+  const newRegion: Region = { startCol, startRow, endCol, endRow };
+  const allRegions = [...set].map(parseRegion);
+  allRegions.push(newRegion);
 
-  const minimized = fullyMergeRanges(allRanges);
+  const minimized = fullyMergeRegion(allRegions);
 
   set.clear();
   for (const r of minimized) {
-    set.add(serializeRange(r));
+    set.add(serializeRegion(r));
   }
 }
 
-export function carveRange(
+export function removeRegionFromSet(
   set: Set<string>,
   startCol: number,
   startRow: number,
   endCol: number,
   endRow: number,
 ) {
-  const input: GridArea = { startCol, startRow, endCol, endRow };
-  const existing = [...set].map(parseRange);
+  const cut: Region = { startCol, startRow, endCol, endRow };
+  const updated: Region[] = [];
+
+  for (const s of set) {
+    const r = parseRegion(s);
+    if (regionsOverlap(r, cut)) {
+      updated.push(...subtractRect(r, cut));
+    } else {
+      updated.push(r);
+    }
+  }
+
+  const merged = fullyMergeRegion(updated);
+  set.clear();
+  for (const r of merged) {
+    set.add(serializeRegion(r));
+  }
+}
+
+export function carveRegion(
+  set: Set<string>,
+  startCol: number,
+  startRow: number,
+  endCol: number,
+  endRow: number,
+) {
+  const input: Region = { startCol, startRow, endCol, endRow };
+  const existing = [...set].map(parseRegion);
 
   // 1) Chop the input out of all existing rectangles
   const existingFragments = existing.flatMap((r) =>
-    rangesOverlap(r, input) ? subtractRect(r, input) : [r],
+    regionsOverlap(r, input) ? subtractRect(r, input) : [r],
   );
 
   // 2) Build the union of all overlapping bits to subtract from the input
-  const overlaps = existing.filter((r) => rangesOverlap(r, input));
+  const overlaps = existing.filter((r) => regionsOverlap(r, input));
   //    merge overlapping existing regions first
-  const mergedOverlaps = fullyMergeRanges(overlaps);
+  const mergedOverlaps = fullyMergeRegion(overlaps);
 
   // 3) Chop that union out of the input
-  let inputFragments: GridArea[] = [input];
+  let inputFragments: Region[] = [input];
   for (const u of mergedOverlaps) {
     inputFragments = inputFragments.flatMap((f) =>
-      rangesOverlap(f, u) ? subtractRect(f, u) : [f],
+      regionsOverlap(f, u) ? subtractRect(f, u) : [f],
     );
   }
 
   // 4) Combine leftovers from existing + leftovers of input, then fully re-merge
-  const result = fullyMergeRanges([...existingFragments, ...inputFragments]);
+  const result = fullyMergeRegion([...existingFragments, ...inputFragments]);
 
   set.clear();
-  for (const r of result) set.add(serializeRange(r));
+  for (const r of result) set.add(serializeRegion(r));
 }
 
-export function rangeToQuad(range: GridArea) {
-  const offsetSX = totalOffsetsRange(0, range.startCol - 1, colOffsets());
-  const offsetSY = totalOffsetsRange(0, range.startRow - 1, rowOffsets());
-  const sx = range.startCol * CELL_W + offsetSX;
-  const sy = range.startRow * CELL_H + offsetSY;
+export function regionToQuad(region: Region) {
+  const offsetSX = totalOffsetsRange(0, region.startCol - 1, colOffsets());
+  const offsetSY = totalOffsetsRange(0, region.startRow - 1, rowOffsets());
+  const sx = region.startCol * CELL_W + offsetSX;
+  const sy = region.startRow * CELL_H + offsetSY;
 
-  const offsetEX = totalOffsetsRange(0, range.endCol - 1, colOffsets());
-  const offsetEY = totalOffsetsRange(0, range.endRow - 1, rowOffsets());
+  const offsetEX = totalOffsetsRange(0, region.endCol - 1, colOffsets());
+  const offsetEY = totalOffsetsRange(0, region.endRow - 1, rowOffsets());
   const ex =
-    range.endCol * CELL_W + offsetEX + getEffectiveCellWidth(range.endCol);
+    region.endCol * CELL_W + offsetEX + getEffectiveCellWidth(region.endCol);
   const ey =
-    range.endRow * CELL_H + offsetEY + getEffectiveCellHeight(range.endRow);
+    region.endRow * CELL_H + offsetEY + getEffectiveCellHeight(region.endRow);
 
   return [sx, sy, ex - sx, ey - sy];
 }
 
-export function serializeRange(range: GridArea): string {
-  return `${range.startCol},${range.startRow}:${range.endCol},${range.endRow}`;
+export function serializeRegion(region: Region): string {
+  return `${region.startCol},${region.startRow}:${region.endCol},${region.endRow}`;
 }
 
-export function parseRange(s: string): GridArea {
+export function parseRegion(s: string): Region {
   const [start, end] = s.split(":");
   const [sc, sr] = start.split(",").map(Number);
   const [ec, er] = end.split(",").map(Number);
   return { startCol: sc, startRow: sr, endCol: ec, endRow: er };
 }
 
-export function rangesOverlap(a: GridArea, b: GridArea): boolean {
+export function regionsOverlap(a: Region, b: Region): boolean {
   return (
     a.startCol <= b.endCol &&
     a.endCol >= b.startCol &&
@@ -104,8 +130,8 @@ export function rangesOverlap(a: GridArea, b: GridArea): boolean {
   );
 }
 
-function subtractRect(base: GridArea, cut: GridArea): GridArea[] {
-  const parts: GridArea[] = [];
+function subtractRect(base: Region, cut: Region): Region[] {
+  const parts: Region[] = [];
 
   // top band
   if (cut.startRow > base.startRow) {
@@ -153,18 +179,18 @@ function subtractRect(base: GridArea, cut: GridArea): GridArea[] {
   return parts;
 }
 
-function fullyMergeRanges(r: GridArea[]): GridArea[] {
-  let ranges = r;
+function fullyMergeRegion(r: Region[]): Region[] {
+  let regions = r;
   let changed = true;
-  const mergeTwo = (a: GridArea, b: GridArea): GridArea => ({
+  const mergeTwo = (a: Region, b: Region): Region => ({
     startCol: Math.min(a.startCol, b.startCol),
     startRow: Math.min(a.startRow, b.startRow),
     endCol: Math.max(a.endCol, b.endCol),
     endRow: Math.max(a.endRow, b.endRow),
   });
 
-  const adjacentOrOverlap = (a: GridArea, b: GridArea) =>
-    rangesOverlap(a, b) ||
+  const adjacentOrOverlap = (a: Region, b: Region) =>
+    regionsOverlap(a, b) ||
     (a.startRow === b.startRow &&
       a.endRow === b.endRow &&
       (a.endCol + 1 === b.startCol || b.endCol + 1 === a.startCol)) ||
@@ -174,24 +200,24 @@ function fullyMergeRanges(r: GridArea[]): GridArea[] {
 
   while (changed) {
     changed = false;
-    const out: GridArea[] = [];
-    while (ranges.length > 0) {
-      let curr = ranges.shift() as GridArea;
+    const out: Region[] = [];
+    while (regions.length > 0) {
+      let curr = regions.shift() as Region;
       let mergedAny = false;
-      for (let i = 0; i < ranges.length; i++) {
-        if (adjacentOrOverlap(curr, ranges[i])) {
-          curr = mergeTwo(curr, ranges[i]);
-          ranges.splice(i, 1);
+      for (let i = 0; i < regions.length; i++) {
+        if (adjacentOrOverlap(curr, regions[i])) {
+          curr = mergeTwo(curr, regions[i]);
+          regions.splice(i, 1);
           mergedAny = changed = true;
           break;
         }
       }
       out.push(curr);
     }
-    ranges = out;
+    regions = out;
   }
 
-  return ranges;
+  return regions;
 }
 
 export function addSubtractingIntersectingUnion(
@@ -201,14 +227,14 @@ export function addSubtractingIntersectingUnion(
   endCol: number,
   endRow: number,
 ) {
-  const input: GridArea = { startCol, startRow, endCol, endRow };
-  const existing = [...set].map(parseRange);
+  const input: Region = { startCol, startRow, endCol, endRow };
+  const existing = [...set].map(parseRegion);
 
   // 1) Chop each existing region by the input if they overlap
-  const existingFragments: GridArea[] = [];
-  const overlaps: GridArea[] = [];
+  const existingFragments: Region[] = [];
+  const overlaps: Region[] = [];
   for (const r of existing) {
-    if (rangesOverlap(r, input)) {
+    if (regionsOverlap(r, input)) {
       overlaps.push(r);
       existingFragments.push(...subtractRect(r, input));
     } else {
@@ -216,28 +242,28 @@ export function addSubtractingIntersectingUnion(
     }
   }
 
-  // 2) If no overlaps, just behave like addRangeToSet
+  // 2) If no overlaps, just behave like addRegionToSet
   if (overlaps.length === 0) {
-    const merged = fullyMergeRanges([...existingFragments, input]);
+    const merged = fullyMergeRegion([...existingFragments, input]);
     set.clear();
-    for (const r of merged) set.add(serializeRange(r));
+    for (const r of merged) set.add(serializeRegion(r));
     return;
   }
 
   // 3) Merge all overlapping existing regions, then carve that union out of the input
-  const mergedOverlaps = fullyMergeRanges(overlaps);
-  let inputFragments: GridArea[] = [input];
+  const mergedOverlaps = fullyMergeRegion(overlaps);
+  let inputFragments: Region[] = [input];
   for (const u of mergedOverlaps) {
     inputFragments = inputFragments.flatMap((f) =>
-      rangesOverlap(f, u) ? subtractRect(f, u) : [f],
+      regionsOverlap(f, u) ? subtractRect(f, u) : [f],
     );
   }
 
   // 4) Combine the leftover existing fragments + leftover input fragments, then re-merge
-  const finalList = fullyMergeRanges([...existingFragments, ...inputFragments]);
+  const finalList = fullyMergeRegion([...existingFragments, ...inputFragments]);
 
   set.clear();
   for (const r of finalList) {
-    set.add(serializeRange(r));
+    set.add(serializeRegion(r));
   }
 }

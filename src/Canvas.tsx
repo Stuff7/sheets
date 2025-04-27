@@ -1,4 +1,4 @@
-import Dbg from "./Dbg";
+import { watch, watchOnly } from "jsx";
 import {
   setCanvasRect,
   instances,
@@ -7,12 +7,10 @@ import {
   canvasRect,
   scroll,
   setProjection,
-  customCells,
 } from "./state";
 import { initShaderSystem, type ShaderSystem, type Shader } from "./gl";
 import { Mat4 } from "./math";
 import { QUAD_MESH } from "./instance";
-import { watch, watchOnly } from "jsx";
 
 let canvas!: HTMLCanvasElement;
 let shaderSys!: ShaderSystem;
@@ -85,19 +83,5 @@ export default function Canvas() {
     });
   }
 
-  return (
-    <>
-      <canvas $ref={canvas} class="w-full h-full" />
-      <Dbg>
-        <p>
-          Projection: <br />
-          {Mat4.toString(projection())}
-        </p>
-        <p>Cells: {JSON.stringify(customCells())}</p>
-        <p>
-          Scroll: {scroll().x} {scroll().y}
-        </p>
-      </Dbg>
-    </>
-  );
+  return <canvas $ref={canvas} class="w-full h-full" />;
 }

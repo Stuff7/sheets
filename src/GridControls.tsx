@@ -17,7 +17,6 @@ import {
   rowOffsets,
   scroll,
   selectedRegions,
-  selectedQuads,
   setScroll,
   setScrollEl,
   setSelectedRegions,
@@ -26,12 +25,22 @@ import {
   ctrlPressed,
   setLastSelectedRegions,
   lastSelectedRegions,
+  colorRegions,
+  setSelectedColor,
+  prefersDark,
+  defaultCellColor,
+  textCells,
 } from "./state";
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
 import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
 import { addText } from "./render";
-import { parseRange, rangeToQuad, carveRange } from "./gridArea";
+import {
+  parseRegion,
+  regionToQuad,
+  carveRegion,
+  regionsOverlap,
+} from "./region";
 
 export default function GridControls() {
   let cellInput!: HTMLTextAreaElement;
@@ -83,6 +92,30 @@ export default function GridControls() {
     hasDragged = false;
     updateSelection(ev);
     isSelecting = true;
+    updateSelectedColor();
+  }
+
+  watchFn(prefersDark, updateSelectedColor);
+
+  function updateSelectedColor() {
+    let cellColor: string | undefined;
+    const cellRegion = {
+      startCol: areaStart.col,
+      startRow: areaStart.row,
+      endCol: areaStart.col,
+      endRow: areaStart.row,
+    };
+    for (const color in colorRegions()) {
+      for (const r of colorRegions()[color]) {
+        const region = parseRegion(r);
+        if (regionsOverlap(region, cellRegion)) {
+          cellColor = color;
+          break;
+        }
+      }
+      if (cellColor) break;
+    }
+    setSelectedColor(cellColor ?? defaultCellColor());
   }
 
   function updateSelection(ev: MouseEvent | TouchEvent) {
@@ -108,12 +141,12 @@ export default function GridControls() {
 
     if (!ctrlPressed()) setLastSelectedRegions.byRef((sel) => sel.clear());
     const sel = new Set(lastSelectedRegions());
-    carveRange(sel, startCol, startRow, endCol, endRow);
+    carveRegion(sel, startCol, startRow, endCol, endRow);
     setSelectedRegions(sel);
   }
 
   const customCellPositions: Record<number, Cell> = {};
-  function addCustomCell(text: string) {
+  function addTextCell(text: string) {
     if (!text) return;
     addText(inputCell, text);
     customCellPositions[getCellIdx(inputCell.col, inputCell.row)] = inputCell;
@@ -128,7 +161,7 @@ export default function GridControls() {
     setSelectedQuads.byRef((quads) => {
       quads.length = 0;
       for (const r of selectedRegions()) {
-        quads.push(...rangeToQuad(parseRange(r)));
+        quads.push(...regionToQuad(parseRegion(r)));
       }
     });
   });
@@ -227,16 +260,25 @@ export default function GridControls() {
         <textarea
           $ref={cellInput}
           class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
-          on:change={(e) => addCustomCell(e.currentTarget.value)}
+          on:change={(e) => addTextCell(e.currentTarget.value)}
         />
         <strong class="absolute -top-7 -left-1 p-1">
           {inputCellElem().id}
         </strong>
       </label>
       <Dbg>
-        <p>Input: {isCellInputVisible()}</p>
-        <p>selRegions: {JSON.stringify([...selectedRegions()], null, 2)}</p>
-        <p>selQuads: {JSON.stringify(selectedQuads(), null, 2)}</p>
+        <p>
+          Colored:{" "}
+          {JSON.stringify(
+            colorRegions(),
+            (_, value) => (value instanceof Set ? Array.from(value) : value),
+            2,
+          )}
+        </p>
+        <p>Selected: {JSON.stringify([...selectedRegions()], null, 2)}</p>
+        <p>Texts: {JSON.stringify(textCells(), null, 2)}</p>
+        <p>ColOffsets: {JSON.stringify(colOffsets())}</p>
+        <p>RowOffsets: {JSON.stringify(rowOffsets())}</p>
       </Dbg>
     </>
   );
