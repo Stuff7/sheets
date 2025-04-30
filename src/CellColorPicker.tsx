@@ -15,6 +15,7 @@ import {
   rowOffsets,
   setColorRegions,
   defaultCellColor,
+  colorQuads,
 } from "./state";
 
 export default function CellColorPicker() {
@@ -47,7 +48,10 @@ export default function CellColorPicker() {
             region.endCol,
             region.endRow,
           );
-          if (r[c].size === 0) delete r[c];
+          if (r[c].size === 0) {
+            delete r[c];
+            delete colorQuads()[c];
+          }
         }
       }
       if (color !== defaultCellColor()) {
@@ -83,24 +87,25 @@ export default function CellColorPicker() {
   });
 
   return (
-    <fieldset class="flex items-center gap-2">
+    <fieldset
+      data-button
+      class="flex items-center gap-2 outline py-1 px-2 rounded-sm"
+    >
       <button
         data-icon
+        class:plain
         type="button"
         title="Clear cell color"
         on:click={() => onColorChange(defaultCellColor())}
       >
         
       </button>
-      <label class="flex items-center gap-2">
-        <span>{selectedColor()}</span>
-        <input
-          type="color"
-          $value={selectedColor()}
-          on:input={(ev) => onColorChange(ev.currentTarget.value)}
-          class="w-4 h-4 rounded-sm cursor-pointer"
-        />
-      </label>
+      <input
+        type="color"
+        $value={selectedColor()}
+        on:input={(ev) => onColorChange(ev.currentTarget.value)}
+        class="w-4 h-4 cursor-pointer"
+      />
     </fieldset>
   );
 }

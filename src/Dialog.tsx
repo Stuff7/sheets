@@ -82,12 +82,13 @@ export default function Dialog(props: DialogProps) {
       >
         <h1 class="text-lg font-bold">{props.title}</h1>
         <button
+          data-icon
           type="button"
-          class="hover:scale-150 transition-transform"
+          class:plain
           on:click={() => props.onClose(false)}
           on:touchend={() => props.onClose(false)}
         >
-          <i></i>
+          
         </button>
       </header>
       <article

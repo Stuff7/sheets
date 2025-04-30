@@ -13,7 +13,7 @@
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.14",
     "esbuild": "^0.25.1",
-    "jsx": "https://github.com/Stuff7/jsx/releases/download/14002913397/jsx-1.0.0.tgz",
+    "jsx": "https://github.com/Stuff7/jsx/releases/download/14744866768/jsx-1.0.0.tgz",
     "tailwindcss": "^4.0.14",
     "typescript": "^5.8.2"
   }

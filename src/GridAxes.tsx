@@ -26,11 +26,6 @@ import { CELL_W, CELL_H, MAX_ROWS, MAX_COLS } from "./config";
 import { carveRegion } from "./region";
 
 const RESIZE_STYLE = "absolute z-1";
-const CELL_HEADER_DARK =
-  "dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-emerald-400 dark:active:bg-emerald-100 dark:hover:text-zinc-800 dark:active:text-zinc-800";
-const CELL_HEADER_LIGHT =
-  "border-zinc-300 bg-zinc-200 hover:bg-indigo-700 active:bg-indigo-900 hover:text-zinc-200 active:text-zinc-200";
-const CELL_HEADER_STYLE = `relative border ${CELL_HEADER_DARK} ${CELL_HEADER_LIGHT}`;
 
 export default function GridAxes() {
   const [cellKeys, setCellKeys] = ref({
@@ -182,10 +177,11 @@ export default function GridAxes() {
       >
         <For
           each={cellKeys().cols}
-          do={(col) => (
+          do={(col, i) => (
             <button
               type="button"
-              class={`${CELL_HEADER_STYLE}`}
+              $tabindex={i === cellKeys().cols.length - 1 ? -1 : undefined}
+              class="relative"
               on:click={(ev) => selectCol(ev, fromAlphaUpper(col()))}
               style:width={`${getEffectiveCellWidth(fromAlphaUpper(col()))}px`}
             >
@@ -213,10 +209,11 @@ export default function GridAxes() {
       >
         <For
           each={cellKeys().rows}
-          do={(row) => (
+          do={(row, i) => (
             <button
               type="button"
-              class={`block w-full px-2 min-w-[56.5px] ${CELL_HEADER_STYLE}`}
+              $tabindex={i === cellKeys().rows.length - 1 ? -1 : undefined}
+              class="block w-full px-2 min-w-[56.5px] relative"
               on:click={(ev) => selectRow(ev, fromAlphaLower(row()))}
               style:height={`${getEffectiveCellHeight(fromAlphaLower(row()))}px`}
             >

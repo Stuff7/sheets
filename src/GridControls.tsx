@@ -259,7 +259,7 @@ export default function GridControls() {
       >
         <textarea
           $ref={cellInput}
-          class="px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400 outline-dashed outline-2 h-full w-full"
+          class="h-full w-full"
           on:change={(e) => addTextCell(e.currentTarget.value)}
         />
         <strong class="absolute -top-7 -left-1 p-1">

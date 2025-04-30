@@ -40,12 +40,38 @@
     Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+html, body {
+  @apply accent-indigo-500 dark:accent-emerald-500 bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-50 overflow-hidden! fixed h-dvh w-dvw;
+}
+
+::selection {
+  @apply bg-indigo-500 text-zinc-100;
+}
+
+.dark ::selection {
+  @apply bg-emerald-500 text-zinc-800;
+}
+
 .text-shadow {
   text-shadow: 1px 1px 2px black;
 }
 
-button {
-  cursor: pointer;
+[data-button], button, select {
+  @apply cursor-pointer;
+}
+
+[data-button], button:not(.plain), select {
+  @apply outline -outline-offset-1;
+  @apply outline-zinc-300 bg-zinc-200 text-zinc-800 hover:bg-indigo-500 active:bg-indigo-900 hover:text-zinc-200 active:text-zinc-200;
+  @apply dark:outline-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-emerald-500 dark:active:bg-emerald-100 dark:hover:text-zinc-800 dark:active:text-zinc-800;
+
+  &.selected {
+    @apply bg-indigo-500 text-zinc-100 dark:bg-emerald-500 dark:text-zinc-900;
+  }
+}
+
+select {
+  @apply rounded-md py-1 px-3;
 }
 
 i,
@@ -54,4 +80,12 @@ i,
   font-style: normal;
   display: inline-block;
   text-align: center;
+}
+
+button, input, textarea, select {
+  @apply focus:outline focus:outline-indigo-500 dark:focus:outline-emerald-500 -outline-offset-1;
+}
+
+input:not([type=color]), textarea {
+  @apply px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400;
 }

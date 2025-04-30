@@ -48,15 +48,18 @@ export function renderTextToImage(
   const backgroundColor = style.backgroundColor;
 
   imgCtx.font = font;
-  const metrics = imgCtx.measureText(text);
   const padding = 10;
-  const textWidth = metrics.width + padding * 2;
   const fontSizeMatch = font.match(/(\d+)px/);
   const fontSize = fontSizeMatch ? Number.parseInt(fontSizeMatch[1], 10) : 16;
-  const textHeight = fontSize + padding * 2;
+  const lineHeight = fontSize * 1.2;
 
-  imgCtx = resizeCtx(imgCanvas, textWidth, textHeight, imgCtx);
+  const lines = text.split("\n");
+  const textWidth =
+    Math.max(...lines.map((line) => imgCtx.measureText(line).width)) +
+    padding * 2;
+  const textHeight = lines.length * lineHeight;
 
+  imgCtx = resizeCtx(imgCanvas, textWidth, textHeight + padding * 2, imgCtx);
   imgCtx.clearRect(0, 0, imgCanvas.width, imgCanvas.height);
 
   if (backgroundColor) {
@@ -67,7 +70,7 @@ export function renderTextToImage(
   imgCtx.font = font;
   imgCtx.fillStyle = fillStyle;
   imgCtx.textAlign = textAlign;
-  imgCtx.textBaseline = textBaseline;
+  imgCtx.textBaseline = "top"; // Use top internally for stacking lines
 
   let x: number;
   if (textAlign === "center") {
@@ -78,16 +81,29 @@ export function renderTextToImage(
     x = padding;
   }
 
-  let y: number;
-  if (textBaseline === "middle") {
-    y = imgCanvas.height / 2;
-  } else if (textBaseline === "bottom" || textBaseline === "ideographic") {
-    y = imgCanvas.height - padding;
-  } else {
-    y = padding;
+  // Adjust Y according to requested textBaseline
+  let yOffset: number;
+  switch (textBaseline) {
+    case "top":
+    case "hanging":
+      yOffset = padding;
+      break;
+    case "middle":
+      yOffset = (imgCanvas.height - textHeight) / 2;
+      break;
+    case "bottom":
+    case "ideographic":
+      yOffset = imgCanvas.height - textHeight - padding;
+      break;
+    default:
+      yOffset = padding;
+      break;
   }
 
-  imgCtx.fillText(text, x, y);
+  lines.forEach((line, i) => {
+    const y = yOffset + i * lineHeight;
+    imgCtx.fillText(line, x, y);
+  });
 
   const image = new Image();
 
