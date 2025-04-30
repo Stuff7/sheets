@@ -4,7 +4,6 @@ import Dialog from "./Dialog";
 import {
   prefersDark,
   setPrefersDark,
-  canvasRect,
   setTouchSelection,
   touchSelection,
   setCtrlPressed,
@@ -69,7 +68,9 @@ document.body.prepend(
     g:onkeyup={onKeyUp}
   >
     <header class="flex items-center gap-2 w-full p-2 bg-stone-300 text-zinc-900 dark:bg-zinc-950 dark:text-stone-100">
-      <h1 class="flex-1 text-black text-xl text-inherit">Sheets</h1>
+      <h1 class="flex-1 text-black text-xl text-inherit font-bold px-3">
+        <i></i> Sheets
+      </h1>
       <button
         $if={isTouchscreen}
         type="button"
