@@ -5,7 +5,6 @@ import {
   getCellId,
   getMousePosition,
   isTouchscreen,
-  getCellIdx,
 } from "./utils";
 import {
   canvasRect,
@@ -30,11 +29,12 @@ import {
   prefersDark,
   defaultCellColor,
   textCells,
+  setTextQuads,
 } from "./state";
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
 import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
-import { addText } from "./render";
+import { addText, atlasTiles } from "./render";
 import {
   parseRegion,
   regionToQuad,
@@ -145,14 +145,12 @@ export default function GridControls() {
     setSelectedRegions(sel);
   }
 
-  const customCellPositions: Record<number, Cell> = {};
   function addTextCell(text: string) {
     if (!text) return;
-    addText(inputCell, text);
-    customCellPositions[getCellIdx(inputCell.col, inputCell.row)] = inputCell;
+    addText(text, inputCell.col, inputCell.row);
   }
 
-  watchOnly([selectedRegions, colOffsets, rowOffsets], (c) => {
+  watchOnly([selectedRegions, textCells, colOffsets, rowOffsets], (c) => {
     if (!(c instanceof Set)) {
       areaStart = { ...(c === colOffsets() ? areaLeft : areaTop) };
       positionCell(areaStart);
@@ -162,6 +160,25 @@ export default function GridControls() {
       quads.length = 0;
       for (const r of selectedRegions()) {
         quads.push(...regionToQuad(parseRegion(r)));
+      }
+    });
+
+    setTextQuads.byRef((quads) => {
+      quads.length = 0;
+      for (const cellIdx in textCells()) {
+        const idx = +cellIdx;
+        const col = idx % MAX_COLS;
+        const row = Math.floor(idx / MAX_COLS);
+        quads.push(
+          ...regionToQuad({
+            startCol: col,
+            startRow: row,
+            endCol: col,
+            endRow: row,
+          }),
+        );
+        quads[quads.length - 2] = atlasTiles[textCells()[cellIdx]].width;
+        quads[quads.length - 1] = atlasTiles[textCells()[cellIdx]].height;
       }
     });
   });

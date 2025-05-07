@@ -1,4 +1,4 @@
-import type { Color, CellMap, Cell } from "./types";
+import type { Color } from "./types";
 import {
   COLOR_CELL_DARK,
   COLOR_CELL_LIGHT,
@@ -9,6 +9,7 @@ import {
   GRID_LINE_SIZE,
   CELL_H,
   CELL_W,
+  MAX_COLS,
 } from "./config";
 import { aligned, getCellIdx, totalOffsetsRange, hexToRgba } from "./utils";
 import {
@@ -26,6 +27,7 @@ import {
   setInstances,
   colorQuads,
   colorRegions,
+  textQuads,
 } from "./state";
 import {
   createTextureAtlas,
@@ -41,7 +43,7 @@ import { getGL, resizeInstances } from "./Canvas";
 import { parseRegion, regionsOverlap } from "./region";
 
 let atlas!: Atlas;
-const tiles: TileMap = {};
+export const atlasTiles: TileMap = {};
 
 watchOnly(
   [
@@ -75,8 +77,6 @@ watchOnly(
     // Only render instances in view
     const firstCol = computeFirstVisibleColumn(scroll().x);
     const firstRow = computeFirstVisibleRow(scroll().y);
-    let numTexts = 0;
-    const texts: CellMap = {};
     const visibleRange = {
       startCol: firstCol.index,
       startRow: firstRow.index,
@@ -119,19 +119,30 @@ watchOnly(
       numColors.push(numRegions);
     }
 
-    for (let r = firstRow.index; r < firstRow.index + rows; r++) {
-      for (let c = firstCol.index; c < firstCol.index + cols; c++) {
-        const idx = getCellIdx(c, r);
-        if (idx in textCells()) {
-          texts[idx] = textCells()[idx];
-          numTexts++;
-        }
+    let i = 0;
+    const visTextQuads: number[] = [];
+    const visTexts: string[] = [];
+    for (const cellIdx in textCells()) {
+      const idx = +cellIdx;
+      const row = Math.floor(idx / MAX_COLS);
+      const col = idx % MAX_COLS;
+      if (
+        regionsOverlap(
+          { startCol: col, startRow: row, endCol: col, endRow: row },
+          visibleRange,
+        )
+      ) {
+        visTextQuads.push(...textQuads().slice(i, i + 4));
+        visTexts.push(textCells()[idx]);
       }
+      i += 4;
     }
 
     setInstances.byRef((inst) => {
       const numCells =
-        numSelQuads + numTexts + numColors.reduce((t, n) => t + n, 0);
+        numSelQuads +
+        visTextQuads.length +
+        numColors.reduce((t, n) => t + n, 0);
       inst.resize(rows + cols + numCells);
 
       let instOffset = 0;
@@ -170,14 +181,21 @@ watchOnly(
       let n = 0;
       for (const color in colors) {
         const quads = colors[color];
-        drawRegions(inst, quads, instOffset, hexToRgba(color), n / 10);
+        drawRegions(
+          inst,
+          quads,
+          instOffset,
+          undefined,
+          hexToRgba(color),
+          n / 10,
+        );
         instOffset += numColors[n++];
       }
 
-      drawCellMap(inst, texts, instOffset, cellColor, 4);
-      instOffset += numTexts;
+      drawRegions(inst, visTextQuads, instOffset, visTexts, undefined, 4);
+      instOffset += visTextQuads.length;
 
-      drawRegions(inst, selRegions, instOffset, undefined, 5);
+      drawRegions(inst, selRegions, instOffset, undefined, undefined, 5);
 
       resizeInstances(inst.data);
     });
@@ -188,17 +206,23 @@ export function drawRegions(
   inst: Instances,
   cellMap: number[],
   offset: number,
+  texts?: string[],
   cellColor?: Color,
   z = 0,
 ) {
   let i = offset;
   for (let n = 0; n < cellMap.length; n += 4) {
     const [x, y, w, h] = cellMap.slice(n, n + 4);
-    const color =
-      cellColor ??
-      (prefersDark() ? COLOR_SELECTED_CELL_DARK : COLOR_SELECTED_CELL_LIGHT);
-    inst.hasUVAt(i)[0] = 0;
-    inst.colorAt(i).set(color);
+    if (texts != null) {
+      inst.hasUVAt(i)[0] = 1;
+      inst.uvAt(i).set(atlas.uvCoords[texts[n / 4]]);
+    } else {
+      const color =
+        cellColor ??
+        (prefersDark() ? COLOR_SELECTED_CELL_DARK : COLOR_SELECTED_CELL_LIGHT);
+      inst.hasUVAt(i)[0] = 0;
+      inst.colorAt(i).set(color);
+    }
 
     const model = inst.modelAt(i);
     Mat4.scaleIdentity(model, w, h, 1);
@@ -207,71 +231,23 @@ export function drawRegions(
   }
 }
 
-function drawCellMap(
-  inst: Instances,
-  cellMap: CellMap,
-  offset: number,
-  cellColor: Color,
-  z = 0,
-) {
-  let i = offset;
-  for (const k in cellMap) {
-    const c = cellMap[k];
-
-    if (c.text) {
-      const uv = atlas.uvCoords[c.text];
-      inst.uvAt(i).set(uv);
-      inst.hasUVAt(i)[0] = 1;
-      inst.colorAt(i).set(cellColor);
-    } else {
-      const color = prefersDark()
-        ? COLOR_SELECTED_CELL_DARK
-        : COLOR_SELECTED_CELL_LIGHT;
-      inst.hasUVAt(i)[0] = 0;
-      inst.colorAt(i).set(color);
-    }
-
-    const model = inst.modelAt(i);
-    Mat4.scaleIdentity(model, c.width, c.height, 1);
-    Mat4.translateTo(model, c.x, c.y, z);
-    i++;
-  }
-}
-
-export async function addText(pos: Cell, value: string) {
+export async function addText(value: string, col: number, row: number) {
   if (!value) return;
-  const hasKey = value in tiles;
+  const hasKey = value in atlasTiles;
 
-  if (!tiles[value]) {
-    tiles[value] = await renderTextToImage(value, {
+  if (!atlasTiles[value]) {
+    atlasTiles[value] = await renderTextToImage(value, {
       font: "16px mono",
     });
   }
 
   if (!hasKey) {
-    atlas = createTextureAtlas(tiles);
+    atlas = createTextureAtlas(atlasTiles);
     loadTextureAtlas(getGL());
   }
 
-  setTextCells.byRef((cell) => {
-    const c = createCell(cell, getCellIdx(pos.col, pos.row));
-    c.text = value;
-    c.width = tiles[value].width;
-    c.height = tiles[value].height;
-    c.x = pos.x;
-    c.y = pos.y;
+  setTextCells.byRef((cells) => {
+    console.log(cells, col, row, value);
+    cells[getCellIdx(col, row)] = value;
   });
-}
-
-function createCell(c: CellMap, idx: number) {
-  if (!c[idx]) {
-    c[idx] = {
-      text: "",
-      width: CELL_W,
-      height: CELL_H,
-      x: 0,
-      y: 0,
-    };
-  }
-  return c[idx];
 }

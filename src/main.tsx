@@ -9,6 +9,10 @@ import {
   setCtrlPressed,
   ctrlPressed,
   setLastSelectedRegions,
+  colorRegions,
+  textCells,
+  rowOffsets,
+  colOffsets,
 } from "./state";
 import GridControls from "./GridControls";
 import { isTouchscreen } from "./utils";
@@ -17,6 +21,7 @@ import { serializeRegion } from "./region";
 import { MAX_COLS, MAX_ROWS } from "./config";
 import CellColorPicker from "./CellColorPicker";
 import FontSelector from "./FontSelector";
+import { decodeXLSXData, encodeXLSXData } from "./saves";
 
 const [dbg, setDbg] = ref(false);
 
@@ -81,6 +86,22 @@ document.body.prepend(
       </button>
       <FontSelector value={fontSize()} onInput={setFontSize} />
       <CellColorPicker />
+      <button
+        type="button"
+        class="px-2 rounded-sm"
+        on:click={() => {
+          const encoded = encodeXLSXData(
+            colorRegions(),
+            textCells(),
+            rowOffsets(),
+            colOffsets(),
+          );
+          console.log("Encoded", encoded);
+          console.log("Decoded", decodeXLSXData(encoded));
+        }}
+      >
+        SAVE
+      </button>
       <button
         type="button"
         class="px-2 rounded-sm font-bold h-full aspect-square"

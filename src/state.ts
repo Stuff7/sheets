@@ -6,7 +6,7 @@ import {
   COLOR_CELL_LIGHT_HEX,
 } from "./config";
 import { initInstances } from "./instance";
-import type { CellMap, PartialCell } from "./types";
+import type { PartialCell, RegionMap, TextMap } from "./types";
 import { Mat4 } from "./math";
 import { isTouchscreen } from "./utils";
 
@@ -22,11 +22,10 @@ export const [lastSelectedRegions, setLastSelectedRegions] = ref(
 );
 export const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
 export const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
-export const [colorRegions, setColorRegions] = ref<Record<string, Set<string>>>(
-  {},
-);
+export const [colorRegions, setColorRegions] = ref<RegionMap>({});
 export const [colorQuads, setColorQuads] = ref<Record<string, number[]>>({});
-export const [textCells, setTextCells] = ref<CellMap>({});
+export const [textCells, setTextCells] = ref<TextMap>({});
+export const [textQuads, setTextQuads] = ref<number[]>([]);
 export const [instances, setInstances] = ref(initInstances(10));
 export const [projection, setProjection] = ref(Mat4.identity());
 
