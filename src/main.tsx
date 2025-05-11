@@ -35,7 +35,7 @@ document.body.append(
   />,
   <div
     data-alerts
-    class="absolute left-0 top-0 z-100 h-dvh w-dvw not-has-[dialog:open]:hidden bg-slate-950/50 backdrop-blur-xs"
+    class="absolute left-0 top-0 z-100 h-dvh w-dvw not-has-[[open=true]]:hidden bg-slate-950/50 backdrop-blur-xs"
   />,
 );
 

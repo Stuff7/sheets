@@ -8,6 +8,7 @@ import {
   sheets,
 } from "./state";
 import Alert from "./Alert";
+import Dbg from "./Dbg";
 
 export default function Tabs() {
   let nameInputEl!: HTMLInputElement;
@@ -132,6 +133,9 @@ export default function Tabs() {
           </button>
         </menu>
       </Alert>
+      <Dbg>
+        <p>ALERT: {confirmationVisible()}</p>
+      </Dbg>
     </footer>
   );
 }
