@@ -17,7 +17,7 @@ import { serializeRegion } from "./region";
 import { MAX_COLS, MAX_ROWS } from "./config";
 import CellColorPicker from "./CellColorPicker";
 import FontSelector from "./FontSelector";
-import { decodeXLSXData, encodeXLSXData } from "./saves";
+import { decodeXLSXData, encodeXLSXData, formatSheetData } from "./saves";
 import Tabs from "./Tabs";
 
 const [dbg, setDbg] = ref(false);
@@ -91,12 +91,7 @@ document.body.prepend(
         type="button"
         class="px-2 rounded-sm"
         on:click={() => {
-          const encoded = encodeXLSXData(
-            currentSheet().colorRegions(),
-            currentSheet().textCells(),
-            currentSheet().rowOffsets(),
-            currentSheet().colOffsets(),
-          );
+          const encoded = encodeXLSXData(formatSheetData());
           console.log("Encoded", encoded);
           console.log("Decoded", decodeXLSXData(encoded));
         }}
