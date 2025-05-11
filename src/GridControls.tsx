@@ -1,4 +1,4 @@
-import { ref, watchFn, watchOnly } from "jsx";
+import { ref, watchFn } from "jsx";
 import {
   totalOffsets,
   totalOffsetsRange,
@@ -8,28 +8,19 @@ import {
 } from "./utils";
 import {
   canvasRect,
-  colOffsets,
   computeFirstVisibleColumn,
   computeFirstVisibleRow,
   getEffectiveCellHeight,
   getEffectiveCellWidth,
-  rowOffsets,
   scroll,
-  selectedRegions,
   setScroll,
   setScrollEl,
-  setSelectedRegions,
-  setSelectedQuads,
   touchSelection,
   ctrlPressed,
-  setLastSelectedRegions,
-  lastSelectedRegions,
-  colorRegions,
   setSelectedColor,
   prefersDark,
   defaultCellColor,
-  textCells,
-  setTextQuads,
+  currentSheet,
 } from "./state";
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
@@ -60,13 +51,10 @@ export default function GridControls() {
     id: "Aa",
   });
 
-  watchFn(
-    () => scroll(),
-    () => {
-      firstCol = computeFirstVisibleColumn(scroll().x);
-      firstRow = computeFirstVisibleRow(scroll().y);
-    },
-  );
+  watchFn(scroll, () => {
+    firstCol = computeFirstVisibleColumn(scroll().x);
+    firstRow = computeFirstVisibleRow(scroll().y);
+  });
 
   function doSelection(ev: MouseEvent | TouchEvent) {
     if (!isSelecting) return;
@@ -105,8 +93,8 @@ export default function GridControls() {
       endCol: areaStart.col,
       endRow: areaStart.row,
     };
-    for (const color in colorRegions()) {
-      for (const r of colorRegions()[color]) {
+    for (const color in currentSheet().colorRegions()) {
+      for (const r of currentSheet().colorRegions()[color]) {
         const region = parseRegion(r);
         if (regionsOverlap(region, cellRegion)) {
           cellColor = color;
@@ -139,10 +127,11 @@ export default function GridControls() {
     const startRow = Math.min(areaStart.row, areaEnd.row);
     const endRow = Math.max(areaStart.row, areaEnd.row);
 
-    if (!ctrlPressed()) setLastSelectedRegions.byRef((sel) => sel.clear());
-    const sel = new Set(lastSelectedRegions());
+    if (!ctrlPressed())
+      currentSheet().setLastSelectedRegions.byRef((sel) => sel.clear());
+    const sel = new Set(currentSheet().lastSelectedRegions());
     carveRegion(sel, startCol, startRow, endCol, endRow);
-    setSelectedRegions(sel);
+    currentSheet().setSelectedRegions(sel);
   }
 
   function addTextCell(text: string) {
@@ -150,48 +139,66 @@ export default function GridControls() {
     addText(text, inputCell.col, inputCell.row);
   }
 
-  watchOnly([selectedRegions, textCells, colOffsets, rowOffsets], (c) => {
-    if (!(c instanceof Set)) {
-      areaStart = { ...(c === colOffsets() ? areaLeft : areaTop) };
-      positionCell(areaStart);
-    }
-
-    setSelectedQuads.byRef((quads) => {
-      quads.length = 0;
-      for (const r of selectedRegions()) {
-        quads.push(...regionToQuad(parseRegion(r)));
+  watchFn(
+    () => [
+      currentSheet().selectedRegions(),
+      currentSheet().textCells(),
+      currentSheet().colOffsets(),
+      currentSheet().rowOffsets(),
+    ],
+    (c) => {
+      if (!(c instanceof Set)) {
+        areaStart = {
+          ...(c === currentSheet().colOffsets() ? areaLeft : areaTop),
+        };
+        positionCell(areaStart);
       }
-    });
 
-    setTextQuads.byRef((quads) => {
-      quads.length = 0;
-      for (const cellIdx in textCells()) {
-        const idx = +cellIdx;
-        const col = idx % MAX_COLS;
-        const row = Math.floor(idx / MAX_COLS);
-        quads.push(
-          ...regionToQuad({
-            startCol: col,
-            startRow: row,
-            endCol: col,
-            endRow: row,
-          }),
-        );
-        quads[quads.length - 2] = atlasTiles[textCells()[cellIdx]].width;
-        quads[quads.length - 1] = atlasTiles[textCells()[cellIdx]].height;
-      }
-    });
-  });
+      currentSheet().setSelectedQuads.byRef((quads) => {
+        quads.length = 0;
+        for (const r of currentSheet().selectedRegions()) {
+          quads.push(...regionToQuad(parseRegion(r)));
+        }
+      });
 
-  watchOnly([lastSelectedRegions], () =>
-    setSelectedRegions(new Set(lastSelectedRegions())),
+      currentSheet().setTextQuads.byRef((quads) => {
+        quads.length = 0;
+        for (const cellIdx in currentSheet().textCells()) {
+          const idx = +cellIdx;
+          const col = idx % MAX_COLS;
+          const row = Math.floor(idx / MAX_COLS);
+          quads.push(
+            ...regionToQuad({
+              startCol: col,
+              startRow: row,
+              endCol: col,
+              endRow: row,
+            }),
+          );
+          quads[quads.length - 2] =
+            atlasTiles[currentSheet().textCells()[cellIdx]].width;
+          quads[quads.length - 1] =
+            atlasTiles[currentSheet().textCells()[cellIdx]].height;
+        }
+      });
+    },
+  );
+
+  watchFn(
+    () => currentSheet().lastSelectedRegions(),
+    () =>
+      currentSheet().setSelectedRegions(
+        new Set(currentSheet().lastSelectedRegions()),
+      ),
   );
 
   function endSelection() {
     if (!isSelecting) return;
     if (isTouchscreen && !touchSelection()) return;
     isSelecting = false;
-    setLastSelectedRegions(new Set(selectedRegions()));
+    currentSheet().setLastSelectedRegions(
+      new Set(currentSheet().selectedRegions()),
+    );
   }
 
   function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
@@ -213,12 +220,20 @@ export default function GridControls() {
     c.x =
       (c.col - firstCol.index) * CELL_W +
       scroll().x +
-      totalOffsetsRange(firstCol.index, c.col - 1, colOffsets()) -
+      totalOffsetsRange(
+        firstCol.index,
+        c.col - 1,
+        currentSheet().colOffsets(),
+      ) -
       firstCol.remainder;
     c.y =
       (c.row - firstRow.index) * CELL_H +
       scroll().y +
-      totalOffsetsRange(firstRow.index, c.row - 1, rowOffsets()) -
+      totalOffsetsRange(
+        firstRow.index,
+        c.row - 1,
+        currentSheet().rowOffsets(),
+      ) -
       firstRow.remainder;
   }
 
@@ -242,8 +257,9 @@ export default function GridControls() {
     <>
       <div
         $refFn={setScrollEl}
-        class="absolute right-0 bottom-0"
+        class="absolute right-0"
         class:overflow-auto={!touchSelection()}
+        style:top={`${canvasRect().y}px`}
         style:width={`${canvasRect().width}px`}
         style:height={`${canvasRect().height}px`}
         on:scroll={(ev) =>
@@ -254,8 +270,8 @@ export default function GridControls() {
         }
       >
         <div
-          style:width={`${CELL_W * MAX_COLS + totalOffsets(colOffsets())}px`}
-          style:height={`${CELL_H * MAX_ROWS + totalOffsets(rowOffsets())}px`}
+          style:width={`${CELL_W * MAX_COLS + totalOffsets(currentSheet().colOffsets())}px`}
+          style:height={`${CELL_H * MAX_ROWS + totalOffsets(currentSheet().rowOffsets())}px`}
           on:click={() => setIsCellInputVisible(false)}
           on:mousedown={startSelection}
           on:mousemove={doSelection}
@@ -287,15 +303,18 @@ export default function GridControls() {
         <p>
           Colored:{" "}
           {JSON.stringify(
-            colorRegions(),
+            currentSheet().colorRegions(),
             (_, value) => (value instanceof Set ? Array.from(value) : value),
             2,
           )}
         </p>
-        <p>Selected: {JSON.stringify([...selectedRegions()], null, 2)}</p>
-        <p>Texts: {JSON.stringify(textCells(), null, 2)}</p>
-        <p>ColOffsets: {JSON.stringify(colOffsets())}</p>
-        <p>RowOffsets: {JSON.stringify(rowOffsets())}</p>
+        <p>
+          Selected:{" "}
+          {JSON.stringify([...currentSheet().selectedRegions()], null, 2)}
+        </p>
+        <p>Texts: {JSON.stringify(currentSheet().textCells(), null, 2)}</p>
+        <p>ColOffsets: {JSON.stringify(currentSheet().colOffsets())}</p>
+        <p>RowOffsets: {JSON.stringify(currentSheet().rowOffsets())}</p>
       </Dbg>
     </>
   );

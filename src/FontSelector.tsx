@@ -12,7 +12,11 @@ export default function FontSelector(props: FontSizeInputProps) {
         <FixedFor each={systemFonts} do={(f) => <option>{f()}</option>} />
       </select>
       <fieldset class="grid grid-cols-[1rem_3rem_1rem]">
-        <button type="button" on:click={() => props.onInput(props.value - 1)}>
+        <button
+          type="button"
+          class:compact
+          on:click={() => props.onInput(props.value - 1)}
+        >
           -
         </button>
         <input
@@ -20,7 +24,11 @@ export default function FontSelector(props: FontSizeInputProps) {
           $value={props.value}
           on:input={(ev) => props.onInput(+ev.currentTarget.value)}
         />
-        <button type="button" on:click={() => props.onInput(props.value + 1)}>
+        <button
+          type="button"
+          class:compact
+          on:click={() => props.onInput(props.value + 1)}
+        >
           +
         </button>
       </fieldset>

@@ -1,4 +1,4 @@
-import { watch, ref } from "jsx";
+import { watch, ref, watchFn } from "jsx";
 import {
   CELL_H,
   CELL_W,
@@ -17,18 +17,6 @@ export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
 export const [touchSelection, setTouchSelection] = ref(false);
 
-export const [lastSelectedRegions, setLastSelectedRegions] = ref(
-  new Set<string>(),
-);
-export const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
-export const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
-export const [colorRegions, setColorRegions] = ref<RegionMap>({});
-export const [colorQuads, setColorQuads] = ref<Record<string, number[]>>({});
-export const [textCells, setTextCells] = ref<TextMap>({});
-export const [textQuads, setTextQuads] = ref<number[]>([]);
-export const [instances, setInstances] = ref(initInstances(10));
-export const [projection, setProjection] = ref(Mat4.identity());
-
 export const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,
 );
@@ -40,19 +28,90 @@ watch(() => {
   );
 });
 
+export const [instances, setInstances] = ref(initInstances(10));
+export const [projection, setProjection] = ref(Mat4.identity());
+
+export function createSheet(sheetName: string) {
+  const [name, setName] = ref(sheetName);
+  const [lastSelectedRegions, setLastSelectedRegions] = ref(new Set<string>());
+  const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
+  const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
+  const [colorRegions, setColorRegions] = ref<RegionMap>({});
+  const [colorQuads, setColorQuads] = ref<Record<string, number[]>>({});
+  const [textCells, setTextCells] = ref<TextMap>({});
+  const [textQuads, setTextQuads] = ref<number[]>([]);
+  const [colOffsets, setColOffsets] = ref<Record<number, number>>({});
+  const [rowOffsets, setRowOffsets] = ref<Record<number, number>>({});
+
+  return {
+    name,
+    setName,
+    lastSelectedRegions,
+    setLastSelectedRegions,
+    selectedRegions,
+    setSelectedRegions,
+    selectedQuads,
+    setSelectedQuads,
+    colorRegions,
+    setColorRegions,
+    colorQuads,
+    setColorQuads,
+    textCells,
+    setTextCells,
+    textQuads,
+    setTextQuads,
+    colOffsets,
+    setColOffsets,
+    rowOffsets,
+    setRowOffsets,
+  };
+}
+
+export type Sheet = ReturnType<typeof createSheet>;
+
+let lastSheetIdx = 0;
+export const [sheets, setSheets] = ref<Sheet[]>([
+  createSheet(`sheet${lastSheetIdx++}`),
+]);
+export const [currentSheet, setCurrentSheet] = ref(sheets()[0]);
+
+watchFn(
+  () => currentSheet().name(),
+  () => {
+    location.hash = `#${encodeURIComponent(currentSheet().name())}`;
+  },
+);
+
+export function addSheet() {
+  setSheets.byRef((sheets) => {
+    const idx = sheets.length;
+    sheets.push(createSheet(`sheet${lastSheetIdx++}`));
+    setCurrentSheet(sheets[idx]);
+  });
+}
+
+export function delSheet(idx: number) {
+  if (sheets()[idx] === currentSheet()) {
+    setCurrentSheet(idx === 0 ? sheets()[1] : sheets()[idx - 1]);
+  }
+
+  setSheets.byRef((sheets) => sheets.splice(idx, 1));
+}
+
+export function setSheet(idx: number) {
+  setCurrentSheet(sheets()[idx]);
+}
+
 watch(() => {
   document.documentElement.classList[prefersDark() ? "add" : "remove"]("dark");
 });
 
-export const [colOffsets, setColOffsets] = ref<Record<number, number>>({});
-export const [rowOffsets, setRowOffsets] = ref<Record<number, number>>({});
-
 export function getEffectiveCellWidth(index: number): number {
-  return CELL_W + (colOffsets()[index] ?? 0);
+  return CELL_W + (currentSheet().colOffsets()[index] ?? 0);
 }
 
 export function getEffectiveCellHeight(index: number): number {
-  return CELL_H + (rowOffsets()[index] ?? 0);
+  return CELL_H + (currentSheet().rowOffsets()[index] ?? 0);
 }
 
 export function computeFirstVisible(
@@ -97,7 +156,7 @@ export function computeFirstVisible(
 export function computeFirstVisibleColumn(scrollX: number): PartialCell {
   return computeFirstVisible(
     scrollX,
-    colOffsets(),
+    currentSheet().colOffsets(),
     CELL_W,
     getEffectiveCellWidth,
   );
@@ -106,7 +165,7 @@ export function computeFirstVisibleColumn(scrollX: number): PartialCell {
 export function computeFirstVisibleRow(scrollY: number): PartialCell {
   return computeFirstVisible(
     scrollY,
-    rowOffsets(),
+    currentSheet().rowOffsets(),
     CELL_H,
     getEffectiveCellHeight,
   );

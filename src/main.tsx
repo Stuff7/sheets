@@ -8,11 +8,7 @@ import {
   touchSelection,
   setCtrlPressed,
   ctrlPressed,
-  setLastSelectedRegions,
-  colorRegions,
-  textCells,
-  rowOffsets,
-  colOffsets,
+  currentSheet,
 } from "./state";
 import GridControls from "./GridControls";
 import { isTouchscreen } from "./utils";
@@ -22,6 +18,7 @@ import { MAX_COLS, MAX_ROWS } from "./config";
 import CellColorPicker from "./CellColorPicker";
 import FontSelector from "./FontSelector";
 import { decodeXLSXData, encodeXLSXData } from "./saves";
+import Tabs from "./Tabs";
 
 const [dbg, setDbg] = ref(false);
 
@@ -36,6 +33,10 @@ document.body.append(
     draggable
     onClose={setDbg}
   />,
+  <div
+    data-alerts
+    class="absolute left-0 top-0 z-100 h-dvh w-dvw not-has-[dialog:open]:hidden bg-slate-950/50 backdrop-blur-xs"
+  />,
 );
 
 function onKeyDown(ev: KeyboardEvent) {
@@ -44,7 +45,7 @@ function onKeyDown(ev: KeyboardEvent) {
   } else if (ev.key === "Control" && !isTouchscreen) {
     setCtrlPressed(true);
   } else if (ev.key.toLowerCase() === "a" && ctrlPressed()) {
-    setLastSelectedRegions.byRef((sel) => {
+    currentSheet().setLastSelectedRegions.byRef((sel) => {
       sel.clear();
       sel.add(
         serializeRegion({
@@ -68,7 +69,7 @@ const [fontSize, setFontSize] = ref(16);
 
 document.body.prepend(
   <main
-    class="grid grid-rows-[auto_1fr] w-full h-full select-none"
+    class="grid grid-rows-[auto_1fr_auto] w-full h-full select-none"
     g:onkeydown={onKeyDown}
     g:onkeyup={onKeyUp}
   >
@@ -91,10 +92,10 @@ document.body.prepend(
         class="px-2 rounded-sm"
         on:click={() => {
           const encoded = encodeXLSXData(
-            colorRegions(),
-            textCells(),
-            rowOffsets(),
-            colOffsets(),
+            currentSheet().colorRegions(),
+            currentSheet().textCells(),
+            currentSheet().rowOffsets(),
+            currentSheet().colOffsets(),
           );
           console.log("Encoded", encoded);
           console.log("Decoded", decodeXLSXData(encoded));
@@ -124,5 +125,6 @@ document.body.prepend(
       <GridControls />
       <Canvas />
     </article>
+    <Tabs />
   </main>,
 );

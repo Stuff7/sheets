@@ -2,6 +2,16 @@ import { parseRegion } from "./region";
 import type { OffsetMap, TextMap, RegionMap } from "./types";
 import { hexToRgba } from "./utils";
 
+// Constants
+const XLSX_MAGIC = "XLSX";
+const XLSX_VERSION = 2;
+const HEADER_SIZE = 4 + 2 + 4 * 5; // magic + version + 5 counts
+const COLOR_ENTRY_SIZE = 4; // 1 byte for id + 3 bytes for RGB
+const REGION_BLOCK_SIZE = 1 + 4 + 4 + 2 + 2; // colorId + startRow + startCol + rowSpan + colSpan
+const TEXT_ENTRY_HEADER_SIZE = 4 + 2; // idx + length
+const ROW_OFFSET_SIZE = 4 + 2; // index + delta
+const COL_OFFSET_SIZE = 4 + 2; // index + delta
+
 export function encodeXLSXData(
   regions: RegionMap,
   texts: TextMap,
@@ -57,12 +67,13 @@ export function encodeXLSXData(
   }));
 
   // === Size Calculation ===
-  let size = 4 + 2 + 4 * 5; // magic + version + 5 counts
-  size += colorEntries.length * 4;
-  size += regionBlocks.length * (1 + 4 + 4 + 2 + 2);
-  for (const { bytes } of textEntries) size += 4 + 2 + bytes.length;
-  size += rowOffsetEntries.length * 6;
-  size += colOffsetEntries.length * 6;
+  let size = HEADER_SIZE;
+  size += colorEntries.length * COLOR_ENTRY_SIZE;
+  size += regionBlocks.length * REGION_BLOCK_SIZE;
+  for (const { bytes } of textEntries)
+    size += TEXT_ENTRY_HEADER_SIZE + bytes.length;
+  size += rowOffsetEntries.length * ROW_OFFSET_SIZE;
+  size += colOffsetEntries.length * COL_OFFSET_SIZE;
 
   const buffer = new ArrayBuffer(size);
   const view = new DataView(buffer);
@@ -71,11 +82,11 @@ export function encodeXLSXData(
 
   // === Header ===
   u8.set(
-    [..."XLSX"].map((c) => c.charCodeAt(0)),
+    [...XLSX_MAGIC].map((c) => c.charCodeAt(0)),
     offset,
   );
   offset += 4;
-  view.setUint16(offset, 2, true);
+  view.setUint16(offset, XLSX_VERSION, true);
   offset += 2;
   view.setUint32(offset, regionBlocks.length, true);
   offset += 4;
@@ -149,12 +160,12 @@ export function decodeXLSXData(data: Uint8Array): {
 
   // === Header ===
   const magic = decoder.decode(u8.slice(offset, offset + 4));
-  if (magic !== "XLSX") throw new Error("Invalid file format");
+  if (magic !== XLSX_MAGIC) throw new Error("Invalid file format");
   offset += 4;
 
   const version = view.getUint16(offset, true);
   offset += 2;
-  if (version !== 2) throw new Error("Unsupported version");
+  if (version !== XLSX_VERSION) throw new Error("Unsupported version");
 
   const regionCount = view.getUint32(offset, true);
   offset += 4;

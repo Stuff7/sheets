@@ -14,20 +14,12 @@ import {
 import { aligned, getCellIdx, totalOffsetsRange, hexToRgba } from "./utils";
 import {
   canvasRect,
-  colOffsets,
   computeFirstVisibleColumn,
   computeFirstVisibleRow,
-  textCells,
   prefersDark,
-  rowOffsets,
   scroll,
-  selectedQuads,
-  selectedRegions,
-  setTextCells,
   setInstances,
-  colorQuads,
-  colorRegions,
-  textQuads,
+  currentSheet,
 } from "./state";
 import {
   createTextureAtlas,
@@ -38,23 +30,23 @@ import {
 } from "./texture";
 import type { Instances } from "./instance";
 import { Mat4 } from "./math";
-import { watchOnly } from "jsx";
+import { watchFn } from "jsx";
 import { getGL, resizeInstances } from "./Canvas";
 import { parseRegion, regionsOverlap } from "./region";
 
 let atlas!: Atlas;
 export const atlasTiles: TileMap = {};
 
-watchOnly(
-  [
-    canvasRect,
-    selectedQuads,
-    colorQuads,
-    textCells,
-    colOffsets,
-    rowOffsets,
-    scroll,
-    prefersDark,
+watchFn(
+  () => [
+    canvasRect(),
+    currentSheet().selectedQuads(),
+    currentSheet().colorQuads(),
+    currentSheet().textCells(),
+    currentSheet().colOffsets(),
+    currentSheet().rowOffsets(),
+    scroll(),
+    prefersDark(),
   ],
   () => {
     const { width, height } = canvasRect();
@@ -103,15 +95,15 @@ watchOnly(
     };
 
     const [selRegions, numSelQuads] = filterVisibleRegions(
-      selectedRegions(),
-      selectedQuads(),
+      currentSheet().selectedRegions(),
+      currentSheet().selectedQuads(),
     );
     const colors: Record<string, number[]> = {};
     const numColors: number[] = [];
-    for (const color in colorQuads()) {
-      const quads = colorQuads()[color];
+    for (const color in currentSheet().colorQuads()) {
+      const quads = currentSheet().colorQuads()[color];
       const [regions, numRegions] = filterVisibleRegions(
-        colorRegions()[color],
+        currentSheet().colorRegions()[color],
         quads,
       );
       if (numRegions === 0) continue;
@@ -122,7 +114,7 @@ watchOnly(
     let i = 0;
     const visTextQuads: number[] = [];
     const visTexts: string[] = [];
-    for (const cellIdx in textCells()) {
+    for (const cellIdx in currentSheet().textCells()) {
       const idx = +cellIdx;
       const row = Math.floor(idx / MAX_COLS);
       const col = idx % MAX_COLS;
@@ -132,8 +124,12 @@ watchOnly(
           visibleRange,
         )
       ) {
-        visTextQuads.push(...textQuads().slice(i, i + 4));
-        visTexts.push(textCells()[idx]);
+        visTextQuads.push(
+          ...currentSheet()
+            .textQuads()
+            .slice(i, i + 4),
+        );
+        visTexts.push(currentSheet().textCells()[idx]);
       }
       i += 4;
     }
@@ -141,14 +137,18 @@ watchOnly(
     setInstances.byRef((inst) => {
       const numCells =
         numSelQuads +
-        visTextQuads.length +
+        visTextQuads.length / 4 +
         numColors.reduce((t, n) => t + n, 0);
       inst.resize(rows + cols + numCells);
 
       let instOffset = 0;
       for (let i = 0; i < cols; i++) {
         const colIdx = firstCol.index + i - 1;
-        const offset = totalOffsetsRange(firstCol.index, colIdx, colOffsets());
+        const offset = totalOffsetsRange(
+          firstCol.index,
+          colIdx,
+          currentSheet().colOffsets(),
+        );
         const model = inst.modelAt(i);
         Mat4.scaleIdentity(model, GRID_LINE_SIZE, h, 1);
         Mat4.translateTo(
@@ -164,7 +164,11 @@ watchOnly(
 
       for (let i = 0; i < rows; i++) {
         const rowIdx = firstRow.index + i - 1;
-        const offset = totalOffsetsRange(firstRow.index, rowIdx, rowOffsets());
+        const offset = totalOffsetsRange(
+          firstRow.index,
+          rowIdx,
+          currentSheet().rowOffsets(),
+        );
         const model = inst.modelAt(i + instOffset);
         Mat4.scaleIdentity(model, w, GRID_LINE_SIZE, 1);
         Mat4.translateTo(
@@ -193,7 +197,7 @@ watchOnly(
       }
 
       drawRegions(inst, visTextQuads, instOffset, visTexts, undefined, 4);
-      instOffset += visTextQuads.length;
+      instOffset += visTextQuads.length / 4;
 
       drawRegions(inst, selRegions, instOffset, undefined, undefined, 5);
 
@@ -246,7 +250,7 @@ export async function addText(value: string, col: number, row: number) {
     loadTextureAtlas(getGL());
   }
 
-  setTextCells.byRef((cells) => {
+  currentSheet().setTextCells.byRef((cells) => {
     console.log(cells, col, row, value);
     cells[getCellIdx(col, row)] = value;
   });

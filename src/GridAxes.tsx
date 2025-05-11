@@ -2,17 +2,13 @@ import { ref, watchFn } from "jsx";
 import For from "jsx/components/For";
 import {
   canvasRect,
-  colOffsets,
   computeFirstVisibleColumn,
   computeFirstVisibleRow,
   getEffectiveCellHeight,
   getEffectiveCellWidth,
-  rowOffsets,
   scroll,
   scrollEl,
-  setLastSelectedRegions,
-  setColOffsets,
-  setRowOffsets,
+  currentSheet,
   ctrlPressed,
 } from "./state";
 import {
@@ -52,7 +48,12 @@ export default function GridAxes() {
   }
 
   watchFn(
-    () => [canvasRect(), scroll(), colOffsets(), rowOffsets()],
+    () => [
+      canvasRect(),
+      scroll(),
+      currentSheet().colOffsets(),
+      currentSheet().rowOffsets(),
+    ],
     () => {
       const { width, height } = canvasRect();
       const { index: firstCol } = computeFirstVisibleColumn(scroll().x);
@@ -126,25 +127,22 @@ export default function GridAxes() {
   let lastScrollY = scroll().x;
   const [headerOffset, setHeaderOffset] = ref(0);
   const [asideOffset, setAsideOffset] = ref(0);
-  watchFn(
-    () => scroll(),
-    () => {
-      if (scroll().x !== lastScrollX) {
-        const offset = computeFirstVisibleColumn(scroll().x).remainder;
-        if (offset >= 0) setHeaderOffset(offset);
-        lastScrollX = scroll().x;
-      }
-      if (scroll().y !== lastScrollY) {
-        const offset = computeFirstVisibleRow(scroll().y).remainder;
-        if (offset >= 0) setAsideOffset(offset);
-        lastScrollY = scroll().y;
-      }
-    },
-  );
+  watchFn(scroll, () => {
+    if (scroll().x !== lastScrollX) {
+      const offset = computeFirstVisibleColumn(scroll().x).remainder;
+      if (offset >= 0) setHeaderOffset(offset);
+      lastScrollX = scroll().x;
+    }
+    if (scroll().y !== lastScrollY) {
+      const offset = computeFirstVisibleRow(scroll().y).remainder;
+      if (offset >= 0) setAsideOffset(offset);
+      lastScrollY = scroll().y;
+    }
+  });
 
   function selectCol(ev: MouseEvent | TouchEvent, col: number) {
     if (ev.target !== ev.currentTarget) return;
-    setLastSelectedRegions.byRef((sel) => {
+    currentSheet().setLastSelectedRegions.byRef((sel) => {
       if (!ctrlPressed()) sel.clear();
       carveRegion(sel, col, 0, col, MAX_ROWS);
     });
@@ -152,7 +150,7 @@ export default function GridAxes() {
 
   function selectRow(ev: MouseEvent | TouchEvent, row: number) {
     if (ev.target !== ev.currentTarget) return;
-    setLastSelectedRegions.byRef((sel) => {
+    currentSheet().setLastSelectedRegions.byRef((sel) => {
       if (!ctrlPressed()) sel.clear();
       carveRegion(sel, 0, row, MAX_COLS, row);
     });
@@ -190,12 +188,22 @@ export default function GridAxes() {
                 class={`${RESIZE_STYLE} cursor-col-resize top-0 right-0 h-full w-3`}
                 on:mousedown={(ev) => startColResize(ev, col())}
                 g:onmousemove={(ev) =>
-                  resizeCell(ev, resizedCol, setColOffsets.byRef, CELL_W)
+                  resizeCell(
+                    ev,
+                    resizedCol,
+                    currentSheet().setColOffsets.byRef,
+                    CELL_W,
+                  )
                 }
                 g:onmouseup={endResize}
                 on:touchstart={(ev) => startColResize(ev, col())}
                 g:ontouchmove={(ev) =>
-                  resizeCell(ev, resizedCol, setColOffsets.byRef, CELL_W)
+                  resizeCell(
+                    ev,
+                    resizedCol,
+                    currentSheet().setColOffsets.byRef,
+                    CELL_W,
+                  )
                 }
                 g:ontouchend={endResize}
               />
@@ -222,12 +230,22 @@ export default function GridAxes() {
                 class={`${RESIZE_STYLE} cursor-row-resize left-0 bottom-0 w-full h-3`}
                 on:mousedown={(ev) => startRowResize(ev, row())}
                 g:onmousemove={(ev) =>
-                  resizeCell(ev, resizedRow, setRowOffsets.byRef, CELL_H)
+                  resizeCell(
+                    ev,
+                    resizedRow,
+                    currentSheet().setRowOffsets.byRef,
+                    CELL_H,
+                  )
                 }
                 g:onmouseup={endResize}
                 on:touchstart={(ev) => startRowResize(ev, row())}
                 g:ontouchmove={(ev) =>
-                  resizeCell(ev, resizedRow, setRowOffsets.byRef, CELL_H)
+                  resizeCell(
+                    ev,
+                    resizedRow,
+                    currentSheet().setRowOffsets.byRef,
+                    CELL_H,
+                  )
                 }
                 g:ontouchend={endResize}
               />

@@ -1,4 +1,4 @@
-import { watchOnly } from "jsx";
+import { watchFn } from "jsx";
 import {
   addRegionToSet,
   parseRegion,
@@ -7,25 +7,19 @@ import {
 } from "./region";
 import {
   selectedColor,
-  selectedRegions,
-  setColorQuads,
   setSelectedColor,
-  colorRegions,
-  colOffsets,
-  rowOffsets,
-  setColorRegions,
   defaultCellColor,
-  colorQuads,
+  currentSheet,
 } from "./state";
 
 export default function CellColorPicker() {
   function onColorChange(color: string) {
     setSelectedColor(color);
-    if (selectedRegions().size === 0) return;
+    if (currentSheet().selectedRegions().size === 0) return;
 
-    const regions = colorRegions()[color] ?? new Set();
+    const regions = currentSheet().colorRegions()[color] ?? new Set();
     console.log(JSON.stringify([...regions], null, 2));
-    for (const k of selectedRegions()) {
+    for (const k of currentSheet().selectedRegions()) {
       const region = parseRegion(k);
       addRegionToSet(
         regions,
@@ -36,7 +30,7 @@ export default function CellColorPicker() {
       );
     }
 
-    setColorRegions.byRef((r) => {
+    currentSheet().setColorRegions.byRef((r) => {
       for (const c in r) {
         if (c === color) continue;
         for (const regionStr of regions) {
@@ -50,14 +44,14 @@ export default function CellColorPicker() {
           );
           if (r[c].size === 0) {
             delete r[c];
-            delete colorQuads()[c];
+            delete currentSheet().colorQuads()[c];
           }
         }
       }
       if (color !== defaultCellColor()) {
         r[color] = regions;
 
-        setColorQuads.byRef((colors) => {
+        currentSheet().setColorQuads.byRef((colors) => {
           const c = colors[color] ?? [];
           c.length = 0;
           for (const k of regions) {
@@ -69,22 +63,29 @@ export default function CellColorPicker() {
     });
   }
 
-  watchOnly([colorRegions, colOffsets, rowOffsets], () => {
-    setColorQuads.byRef((colors) => {
-      for (const c in colors) {
-        if (!colorRegions()[c]) {
-          delete colors[c];
-          continue;
-        }
+  watchFn(
+    () => [
+      currentSheet().colorRegions(),
+      currentSheet().colOffsets(),
+      currentSheet().rowOffsets(),
+    ],
+    () => {
+      currentSheet().setColorQuads.byRef((colors) => {
+        for (const c in colors) {
+          if (!currentSheet().colorRegions()[c]) {
+            delete colors[c];
+            continue;
+          }
 
-        const quads = colors[c];
-        quads.length = 0;
-        for (const r of colorRegions()[c]) {
-          quads.push(...regionToQuad(parseRegion(r)));
+          const quads = colors[c];
+          quads.length = 0;
+          for (const r of currentSheet().colorRegions()[c]) {
+            quads.push(...regionToQuad(parseRegion(r)));
+          }
         }
-      }
-    });
-  });
+      });
+    },
+  );
 
   return (
     <fieldset

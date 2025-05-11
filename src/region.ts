@@ -1,9 +1,8 @@
 import { CELL_H, CELL_W } from "./config";
 import {
-  colOffsets,
   getEffectiveCellHeight,
   getEffectiveCellWidth,
-  rowOffsets,
+  currentSheet,
 } from "./state";
 import { totalOffsetsRange } from "./utils";
 
@@ -95,13 +94,29 @@ export function carveRegion(
 }
 
 export function regionToQuad(region: Region) {
-  const offsetSX = totalOffsetsRange(0, region.startCol - 1, colOffsets());
-  const offsetSY = totalOffsetsRange(0, region.startRow - 1, rowOffsets());
+  const offsetSX = totalOffsetsRange(
+    0,
+    region.startCol - 1,
+    currentSheet().colOffsets(),
+  );
+  const offsetSY = totalOffsetsRange(
+    0,
+    region.startRow - 1,
+    currentSheet().rowOffsets(),
+  );
   const sx = region.startCol * CELL_W + offsetSX;
   const sy = region.startRow * CELL_H + offsetSY;
 
-  const offsetEX = totalOffsetsRange(0, region.endCol - 1, colOffsets());
-  const offsetEY = totalOffsetsRange(0, region.endRow - 1, rowOffsets());
+  const offsetEX = totalOffsetsRange(
+    0,
+    region.endCol - 1,
+    currentSheet().colOffsets(),
+  );
+  const offsetEY = totalOffsetsRange(
+    0,
+    region.endRow - 1,
+    currentSheet().rowOffsets(),
+  );
   const ex =
     region.endCol * CELL_W + offsetEX + getEffectiveCellWidth(region.endCol);
   const ey =
