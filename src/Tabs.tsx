@@ -66,11 +66,12 @@ export default function Tabs() {
           do={(sheet, i) => (
             <span
               data-button
-              class="flex justify-between rounded-b-sm py-1 pl-2 dark:bg-zinc-800 bg-zinc-100 flex min-w-24"
+              class="compact grid grid-cols-[minmax(0,1fr)_auto] rounded-b-sm dark:bg-zinc-800 bg-zinc-100 flex min-w-24"
               class:selected={currentSheet() === sheet()}
             >
               <a
                 role="tab"
+                class="py-1 pl-2"
                 $href={`#${encodeURIComponent(sheet().name())}`}
                 on:dblclick={(ev) => {
                   setNameInput.byRef((input) => {
