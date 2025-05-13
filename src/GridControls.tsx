@@ -137,6 +137,7 @@ export default function GridControls() {
   function addTextCell(text: string) {
     if (!text) return;
     addText(text, inputCell.col, inputCell.row);
+    cellInput.value = "";
   }
 
   watchFn(

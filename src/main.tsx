@@ -19,6 +19,7 @@ import CellColorPicker from "./CellColorPicker";
 import FontSelector from "./FontSelector";
 import { decodeXLSXData, encodeXLSXData, formatSheetData } from "./saves";
 import Tabs from "./Tabs";
+import "./parser";
 
 const [dbg, setDbg] = ref(false);
 
