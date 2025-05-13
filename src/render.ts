@@ -9,9 +9,8 @@ import {
   GRID_LINE_SIZE,
   CELL_H,
   CELL_W,
-  MAX_COLS,
 } from "./config";
-import { aligned, getCellIdx, totalOffsetsRange, hexToRgba } from "./utils";
+import { aligned, totalOffsetsRange, hexToRgba } from "./utils";
 import {
   canvasRect,
   computeFirstVisibleColumn,
@@ -21,28 +20,17 @@ import {
   setInstances,
   currentSheet,
 } from "./state";
-import {
-  createTextureAtlas,
-  loadTextureAtlas,
-  renderTextToImage,
-  type Atlas,
-  type TileMap,
-} from "./texture";
 import type { Instances } from "./instance";
 import { Mat4 } from "./math";
 import { watchFn } from "jsx";
-import { getGL, resizeInstances } from "./Canvas";
+import { resizeInstances } from "./Canvas";
 import { parseRegion, regionsOverlap } from "./region";
-
-let atlas!: Atlas;
-export const atlasTiles: TileMap = {};
 
 watchFn(
   () => [
     canvasRect(),
     currentSheet().selectedQuads(),
     currentSheet().colorQuads(),
-    currentSheet().textCells(),
     currentSheet().colOffsets(),
     currentSheet().rowOffsets(),
     scroll(),
@@ -111,34 +99,8 @@ watchFn(
       numColors.push(numRegions);
     }
 
-    let i = 0;
-    const visTextQuads: number[] = [];
-    const visTexts: string[] = [];
-    for (const cellIdx in currentSheet().textCells()) {
-      const idx = +cellIdx;
-      const row = Math.floor(idx / MAX_COLS);
-      const col = idx % MAX_COLS;
-      if (
-        regionsOverlap(
-          { startCol: col, startRow: row, endCol: col, endRow: row },
-          visibleRange,
-        )
-      ) {
-        visTextQuads.push(
-          ...currentSheet()
-            .textQuads()
-            .slice(i, i + 4),
-        );
-        visTexts.push(currentSheet().textCells()[idx]);
-      }
-      i += 4;
-    }
-
     setInstances.byRef((inst) => {
-      const numCells =
-        numSelQuads +
-        visTextQuads.length / 4 +
-        numColors.reduce((t, n) => t + n, 0);
+      const numCells = numSelQuads + numColors.reduce((t, n) => t + n, 0);
       inst.resize(rows + cols + numCells);
 
       let instOffset = 0;
@@ -185,21 +147,11 @@ watchFn(
       let n = 0;
       for (const color in colors) {
         const quads = colors[color];
-        drawRegions(
-          inst,
-          quads,
-          instOffset,
-          undefined,
-          hexToRgba(color),
-          n / 10,
-        );
+        drawRegions(inst, quads, instOffset, hexToRgba(color), n / 10);
         instOffset += numColors[n++];
       }
 
-      drawRegions(inst, visTextQuads, instOffset, visTexts, undefined, 4);
-      instOffset += visTextQuads.length / 4;
-
-      drawRegions(inst, selRegions, instOffset, undefined, undefined, 5);
+      drawRegions(inst, selRegions, instOffset, undefined, 5);
 
       resizeInstances(inst.data);
     });
@@ -210,48 +162,21 @@ export function drawRegions(
   inst: Instances,
   cellMap: number[],
   offset: number,
-  texts?: string[],
   cellColor?: Color,
   z = 0,
 ) {
   let i = offset;
   for (let n = 0; n < cellMap.length; n += 4) {
     const [x, y, w, h] = cellMap.slice(n, n + 4);
-    if (texts != null) {
-      inst.hasUVAt(i)[0] = 1;
-      inst.uvAt(i).set(atlas.uvCoords[texts[n / 4]]);
-    } else {
-      const color =
-        cellColor ??
-        (prefersDark() ? COLOR_SELECTED_CELL_DARK : COLOR_SELECTED_CELL_LIGHT);
-      inst.hasUVAt(i)[0] = 0;
-      inst.colorAt(i).set(color);
-    }
+    const color =
+      cellColor ??
+      (prefersDark() ? COLOR_SELECTED_CELL_DARK : COLOR_SELECTED_CELL_LIGHT);
+    inst.hasUVAt(i)[0] = 0;
+    inst.colorAt(i).set(color);
 
     const model = inst.modelAt(i);
     Mat4.scaleIdentity(model, w, h, 1);
     Mat4.translateTo(model, x, y, z);
     i++;
   }
-}
-
-export async function addText(value: string, col: number, row: number) {
-  if (!value) return;
-  const hasKey = value in atlasTiles;
-
-  if (!atlasTiles[value]) {
-    atlasTiles[value] = await renderTextToImage(value, {
-      font: "16px mono",
-    });
-  }
-
-  if (!hasKey) {
-    atlas = createTextureAtlas(atlasTiles);
-    loadTextureAtlas(getGL());
-  }
-
-  currentSheet().setTextCells.byRef((cells) => {
-    console.log(cells, col, row, value);
-    cells[getCellIdx(col, row)] = value;
-  });
 }

@@ -20,6 +20,7 @@ import FontSelector from "./FontSelector";
 import { decodeXLSXData, encodeXLSXData, formatSheetData } from "./saves";
 import Tabs from "./Tabs";
 import "./parser";
+import "./render";
 
 const [dbg, setDbg] = ref(false);
 
@@ -66,8 +67,6 @@ function onKeyUp(ev: KeyboardEvent) {
   }
 }
 
-const [fontSize, setFontSize] = ref(16);
-
 document.body.prepend(
   <main
     class="grid grid-rows-[auto_1fr_auto] w-full h-full select-none"
@@ -86,7 +85,7 @@ document.body.prepend(
       >
         {touchSelection() ? "Selecting" : "Select"}
       </button>
-      <FontSelector value={fontSize()} onInput={setFontSize} />
+      <FontSelector />
       <CellColorPicker />
       <button
         type="button"

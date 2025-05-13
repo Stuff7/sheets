@@ -1,33 +1,32 @@
+import { ref } from "jsx";
 import FixedFor from "jsx/components/FixedFor";
 
-type FontSizeInputProps = {
-  value: number;
-  onInput: (n: number) => void;
-};
-
-export default function FontSelector(props: FontSizeInputProps) {
+export default function FontSelector() {
   return (
     <fieldset class="flex gap-2 h-full">
-      <select class="h-full">
-        <FixedFor each={systemFonts} do={(f) => <option>{f()}</option>} />
+      <select
+        class="h-full"
+        on:change={(ev) => setSelectedFont(ev.currentTarget.value)}
+      >
+        <FixedFor each={fontList} do={(f) => <option>{f()}</option>} />
       </select>
       <fieldset class="grid grid-cols-[1rem_3rem_1rem]">
         <button
           type="button"
           class:compact
-          on:click={() => props.onInput(props.value - 1)}
+          on:click={() => setSelectedFontSize(selectedFontSize() - 1)}
         >
           -
         </button>
         <input
           class="text-center"
-          $value={props.value}
-          on:input={(ev) => props.onInput(+ev.currentTarget.value)}
+          $value={selectedFontSize()}
+          on:input={(ev) => setSelectedFontSize(+ev.currentTarget.value)}
         />
         <button
           type="button"
           class:compact
-          on:click={() => props.onInput(props.value + 1)}
+          on:click={() => setSelectedFontSize(selectedFontSize() + 1)}
         >
           +
         </button>
@@ -36,34 +35,28 @@ export default function FontSelector(props: FontSizeInputProps) {
   );
 }
 
-const systemFonts = [
-  "Arial",
-  "Helvetica",
-  "Verdana",
-  "Georgia",
-  "Times New Roman",
-  "Courier New",
-  "Tahoma",
-  "Trebuchet MS",
-  "Comic Sans MS",
-  "Lucida Console",
-  "Impact",
-  "Segoe UI",
-  "Arial Black",
-  "Calibri",
-  "Consolas",
-  "Cambria",
-  "Garamond",
-  "Palatino Linotype",
-  "Book Antiqua",
-  "Century Gothic",
-  "Lucida Sans",
-  "MS Sans Serif",
-  "MS Serif",
-  "Tahoma",
-  "Geneva",
-  "Optima",
-  "Helvetica Neue",
-  "Futura",
-  "Brush Script MT",
+const fontList = [
+  "Amatic SC",
+  "Caveat",
+  "Comfortaa",
+  "Courier Prime",
+  "EB Garamond",
+  "Exo",
+  "JetBrainsMono",
+  "Lexend",
+  "Lobster",
+  "Lora",
+  "Merriweather",
+  "Montserrat",
+  "Nunito",
+  "Oswald",
+  "Pacifico",
+  "Playfair Display",
+  "Roboto",
+  "Roboto Mono",
+  "Roboto Serif",
+  "Spectral",
 ];
+
+export const [selectedFont, setSelectedFont] = ref(fontList[0]);
+export const [selectedFontSize, setSelectedFontSize] = ref(16);

@@ -5,6 +5,7 @@ import {
   getCellId,
   getMousePosition,
   isTouchscreen,
+  getCellIdx,
 } from "./utils";
 import {
   canvasRect,
@@ -25,13 +26,14 @@ import {
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
 import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
-import { addText, atlasTiles } from "./render";
 import {
   parseRegion,
   regionToQuad,
   carveRegion,
   regionsOverlap,
 } from "./region";
+import For from "jsx/components/For";
+import { selectedFont, selectedFontSize } from "./FontSelector";
 
 export default function GridControls() {
   let cellInput!: HTMLTextAreaElement;
@@ -136,7 +138,9 @@ export default function GridControls() {
 
   function addTextCell(text: string) {
     if (!text) return;
-    addText(text, inputCell.col, inputCell.row);
+    currentSheet().setTextCells.byRef((cells) => {
+      cells[getCellIdx(inputCell.col, inputCell.row)] = text;
+    });
     cellInput.value = "";
   }
 
@@ -168,18 +172,21 @@ export default function GridControls() {
           const idx = +cellIdx;
           const col = idx % MAX_COLS;
           const row = Math.floor(idx / MAX_COLS);
-          quads.push(
-            ...regionToQuad({
-              startCol: col,
-              startRow: row,
-              endCol: col,
-              endRow: row,
-            }),
-          );
-          quads[quads.length - 2] =
-            atlasTiles[currentSheet().textCells()[cellIdx]].width;
-          quads[quads.length - 1] =
-            atlasTiles[currentSheet().textCells()[cellIdx]].height;
+          const quad = regionToQuad({
+            startCol: col,
+            startRow: row,
+            endCol: col,
+            endRow: row,
+          });
+          quads.push({
+            text: currentSheet().textCells()[cellIdx],
+            fontFamily: selectedFont(),
+            fontSize: selectedFontSize(),
+            x: quad[0],
+            y: quad[1],
+            w: quad[2],
+            h: quad[3],
+          });
         }
       });
     },
@@ -270,6 +277,22 @@ export default function GridControls() {
           })
         }
       >
+        <For
+          each={currentSheet().textQuads()}
+          do={(t) => (
+            <div
+              class="absolute pointer-events-none text-wrap break-all py-1 px-2"
+              style:font-family={t().fontFamily}
+              style:font-size={`${t().fontSize}px`}
+              style:left={`${t().x}px`}
+              style:top={`${t().y}px`}
+              style:width={`${t().w}px`}
+              style:height={`${t().h}px`}
+            >
+              {t().text}
+            </div>
+          )}
+        />
         <div
           style:width={`${CELL_W * MAX_COLS + totalOffsets(currentSheet().colOffsets())}px`}
           style:height={`${CELL_H * MAX_ROWS + totalOffsets(currentSheet().rowOffsets())}px`}
@@ -293,7 +316,9 @@ export default function GridControls() {
       >
         <textarea
           $ref={cellInput}
-          class="h-full w-full"
+          class="h-full w-full p-1"
+          style:font-family={selectedFont()}
+          style:font-size={`${selectedFontSize()}px`}
           on:change={(e) => addTextCell(e.currentTarget.value)}
         />
         <strong class="absolute -top-7 -left-1 p-1">
