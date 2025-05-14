@@ -11,6 +11,7 @@ import {
   defaultCellColor,
   currentSheet,
 } from "./state";
+import ColorPicker from "./ColorPicker";
 
 export default function CellColorPicker() {
   function onColorChange(color: string) {
@@ -88,25 +89,12 @@ export default function CellColorPicker() {
   );
 
   return (
-    <fieldset
-      data-button
-      class="flex items-center gap-2 outline py-1 px-2 rounded-sm"
+    <ColorPicker
+      defaultColor={defaultCellColor()}
+      color={selectedColor()}
+      onChange={onColorChange}
     >
-      <button
-        data-icon
-        class:plain
-        type="button"
-        title="Clear cell color"
-        on:click={() => onColorChange(defaultCellColor())}
-      >
-        
-      </button>
-      <input
-        type="color"
-        $value={selectedColor()}
-        on:input={(ev) => onColorChange(ev.currentTarget.value)}
-        class="w-4 h-4 cursor-pointer"
-      />
-    </fieldset>
+      <i></i>
+    </ColorPicker>
   );
 }

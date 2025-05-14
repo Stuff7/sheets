@@ -1,36 +1,111 @@
 import { ref } from "jsx";
 import FixedFor from "jsx/components/FixedFor";
+import { currentSheet } from "./state";
+import {
+  DEFAULT_BOLD,
+  DEFAULT_FONT_COLOR,
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  DEFAULT_ITALIC,
+  DEFAULT_STRIKETHROUGH,
+  DEFAULT_UNDERLINE,
+  MAX_COLS,
+} from "./config";
+import { parseRegion, regionsOverlap } from "./region";
+import type { FontStyle } from "./types";
+import ColorPicker from "./ColorPicker";
+import Checkbox from "./Checkbox";
 
 export default function FontSelector() {
+  function updateFont<K extends keyof FontStyle>(k: K, v: FontStyle[K]) {
+    setSelectedFont.byRef((f) => {
+      f[k] = v;
+    });
+    currentSheet().setTextCells.byRef((textCells) => {
+      for (const cellIdx in textCells) {
+        const idx = +cellIdx;
+        const col = idx % MAX_COLS;
+        const row = Math.floor(idx / MAX_COLS);
+        for (const selection of currentSheet().selectedRegions()) {
+          if (
+            regionsOverlap(parseRegion(selection), {
+              startCol: col,
+              startRow: row,
+              endCol: col,
+              endRow: row,
+            })
+          ) {
+            textCells[cellIdx].style[k] = v;
+          }
+        }
+      }
+    });
+  }
+
   return (
     <fieldset class="flex gap-2 h-full">
       <select
         class="h-full"
-        on:change={(ev) => setSelectedFont(ev.currentTarget.value)}
+        on:change={(ev) => updateFont("family", ev.currentTarget.value)}
       >
-        <FixedFor each={fontList} do={(f) => <option>{f()}</option>} />
+        <FixedFor
+          each={fontList}
+          do={(f) => (
+            <option selected={f() === selectedFont().family}>{f()}</option>
+          )}
+        />
       </select>
       <fieldset class="grid grid-cols-[1rem_3rem_1rem]">
         <button
           type="button"
           class:compact
-          on:click={() => setSelectedFontSize(selectedFontSize() - 1)}
+          on:click={() => updateFont("size", selectedFont().size - 1)}
         >
           -
         </button>
         <input
           class="text-center"
-          $value={selectedFontSize()}
-          on:input={(ev) => setSelectedFontSize(+ev.currentTarget.value)}
+          $value={selectedFont().size}
+          on:input={(ev) => updateFont("size", +ev.currentTarget.value)}
         />
         <button
           type="button"
           class:compact
-          on:click={() => setSelectedFontSize(selectedFontSize() + 1)}
+          on:click={() => updateFont("size", selectedFont().size + 1)}
         >
           +
         </button>
       </fieldset>
+      <Checkbox
+        checked={selectedFont().bold}
+        onChange={(v) => updateFont("bold", v)}
+      >
+        <strong>B</strong>
+      </Checkbox>
+      <Checkbox
+        checked={selectedFont().italic}
+        onChange={(v) => updateFont("italic", v)}
+      >
+        <em>I</em>
+      </Checkbox>
+      <Checkbox
+        checked={selectedFont().underline}
+        onChange={(v) => updateFont("underline", v)}
+      >
+        <u>U</u>
+      </Checkbox>
+      <Checkbox
+        checked={selectedFont().strikethrough}
+        onChange={(v) => updateFont("strikethrough", v)}
+      >
+        <s>S</s>
+      </Checkbox>
+      <ColorPicker
+        color={selectedFont().color}
+        onChange={(v) => updateFont("color", v)}
+      >
+        <strong>Aa</strong>
+      </ColorPicker>
     </fieldset>
   );
 }
@@ -58,5 +133,12 @@ const fontList = [
   "Spectral",
 ];
 
-export const [selectedFont, setSelectedFont] = ref(fontList[0]);
-export const [selectedFontSize, setSelectedFontSize] = ref(16);
+export const [selectedFont, setSelectedFont] = ref<FontStyle>({
+  family: DEFAULT_FONT_FAMILY,
+  size: DEFAULT_FONT_SIZE,
+  color: DEFAULT_FONT_COLOR,
+  bold: DEFAULT_BOLD,
+  italic: DEFAULT_ITALIC,
+  underline: DEFAULT_UNDERLINE,
+  strikethrough: DEFAULT_STRIKETHROUGH,
+});

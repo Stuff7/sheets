@@ -1,12 +1,11 @@
 import { Parser, type ASTNode } from "./parser";
 import { getCellIdx, fromAlphaUpper, fromAlphaLower } from "../utils";
-
-export type Spreadsheet = Record<number, string>;
+import type { TextMap } from "~/types";
 
 /**
  * Evaluate a formula: ranges yield number[], functions decide how to handle arrays.
  */
-export function evaluateFormula(formula: string, sheet: Spreadsheet): number {
+export function evaluateFormula(formula: string, sheet: TextMap): number {
   const ast = new Parser(formula).parseExpression();
   const result = evaluate(ast, sheet);
   if (typeof result === "number") return result;
@@ -19,7 +18,7 @@ type EvalResult = number | number[];
 /**
  * Recursively evaluate AST. Ranges => number[].
  */
-function evaluate(node: ASTNode, sheet: Spreadsheet): EvalResult {
+function evaluate(node: ASTNode, sheet: TextMap): EvalResult {
   switch (node.type) {
     case "number":
       return node.value;
@@ -27,9 +26,9 @@ function evaluate(node: ASTNode, sheet: Spreadsheet): EvalResult {
     case "cell": {
       const [c, r] = parseCellId(node.id);
       const idx = getCellIdx(c, r);
-      const f = sheet[idx];
-      if (f === undefined) throw new Error(`Cell ${node.id} not found`);
-      return evaluateFormula(f, sheet);
+      const cell = sheet[idx];
+      if (!cell) throw new Error(`Cell ${node.id} not found`);
+      return evaluateFormula(cell.text, sheet);
     }
 
     case "range":
@@ -59,14 +58,12 @@ function evaluate(node: ASTNode, sheet: Spreadsheet): EvalResult {
       // Raw args may be numbers or arrays
       const rawArgs = node.args.map((arg) => evaluate(arg, sheet));
       switch (node.name) {
-        case "SUM": {
-          // flatten numbers and arrays, then sum
-          return rawArgs.reduce<number>((total, a) => {
-            if (Array.isArray(a)) return total + a.reduce((t, v) => t + v, 0);
-            return total + a;
-          }, 0);
-        }
-        // future functions can introspect rawArgs
+        case "SUM":
+          return rawArgs.reduce<number>(
+            (total, a) =>
+              total + (Array.isArray(a) ? a.reduce((t, v) => t + v, 0) : a),
+            0,
+          );
         default:
           throw new Error(`Unknown function: ${node.name}`);
       }
@@ -77,7 +74,7 @@ function evaluate(node: ASTNode, sheet: Spreadsheet): EvalResult {
 /** Helper: convert Range AST into an array of cell values */
 function flattenRange(
   node: { start: string; end: string },
-  sheet: Spreadsheet,
+  sheet: TextMap,
 ): number[] {
   const [sc, sr] = parseCellId(node.start);
   const [ec, er] = parseCellId(node.end);
@@ -86,9 +83,9 @@ function flattenRange(
   for (let c = sc; c <= ec; c++) {
     for (let r = sr; r <= er; r++) {
       const idx = getCellIdx(c, r);
-      const f = sheet[idx];
-      if (f !== undefined) {
-        const val = evaluateFormula(f, sheet);
+      const cell = sheet[idx];
+      if (cell) {
+        const val = evaluateFormula(cell.text, sheet);
         out.push(val);
       }
     }

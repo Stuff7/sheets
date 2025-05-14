@@ -25,7 +25,14 @@ import {
 } from "./state";
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
-import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
+import {
+  DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_SIZE,
+  CELL_H,
+  CELL_W,
+  MAX_COLS,
+  MAX_ROWS,
+} from "./config";
 import {
   parseRegion,
   regionToQuad,
@@ -33,7 +40,7 @@ import {
   regionsOverlap,
 } from "./region";
 import For from "jsx/components/For";
-import { selectedFont, selectedFontSize } from "./FontSelector";
+import { selectedFont } from "./FontSelector";
 
 export default function GridControls() {
   let cellInput!: HTMLTextAreaElement;
@@ -139,7 +146,11 @@ export default function GridControls() {
   function addTextCell(text: string) {
     if (!text) return;
     currentSheet().setTextCells.byRef((cells) => {
-      cells[getCellIdx(inputCell.col, inputCell.row)] = text;
+      const idx = getCellIdx(inputCell.col, inputCell.row);
+      cells[idx] = {
+        text,
+        style: { ...selectedFont() },
+      };
     });
     cellInput.value = "";
   }
@@ -179,9 +190,7 @@ export default function GridControls() {
             endRow: row,
           });
           quads.push({
-            text: currentSheet().textCells()[cellIdx],
-            fontFamily: selectedFont(),
-            fontSize: selectedFontSize(),
+            ...currentSheet().textCells()[cellIdx],
             x: quad[0],
             y: quad[1],
             w: quad[2],
@@ -282,14 +291,19 @@ export default function GridControls() {
           do={(t) => (
             <div
               class="absolute pointer-events-none text-wrap break-all py-1 px-2"
-              style:font-family={t().fontFamily}
-              style:font-size={`${t().fontSize}px`}
+              style:font-family={t().style.family ?? DEFAULT_FONT_FAMILY}
+              style:font-size={`${t().style.size ?? DEFAULT_FONT_SIZE}px`}
+              style:font-weight={t().style.bold ? "bold" : "normal"}
+              style:font-style={t().style.italic ? "italic" : "normal"}
+              style:text-decoration={t().style.underline ? "underline" : "none"}
+              style:color={t().style.color}
               style:left={`${t().x}px`}
               style:top={`${t().y}px`}
               style:width={`${t().w}px`}
               style:height={`${t().h}px`}
             >
-              {t().text}
+              <s $if={t().style.strikethrough}>{t().text}</s>
+              <span $if={!t().style.strikethrough}>{t().text}</span>
             </div>
           )}
         />
@@ -317,8 +331,14 @@ export default function GridControls() {
         <textarea
           $ref={cellInput}
           class="h-full w-full p-1"
-          style:font-family={selectedFont()}
-          style:font-size={`${selectedFontSize()}px`}
+          style:font-family={selectedFont().family ?? DEFAULT_FONT_FAMILY}
+          style:font-size={`${selectedFont().size ?? DEFAULT_FONT_SIZE}px`}
+          style:font-weight={selectedFont().bold ? "bold" : "normal"}
+          style:font-style={selectedFont().italic ? "italic" : "normal"}
+          style:text-decoration={
+            selectedFont().underline ? "underline" : "none"
+          }
+          style:color={selectedFont().color}
           on:change={(e) => addTextCell(e.currentTarget.value)}
         />
         <strong class="absolute -top-7 -left-1 p-1">

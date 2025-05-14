@@ -19,3 +19,11 @@ export const MAX_ROWS = 2e5;
 
 export const CELL_W = 99;
 export const CELL_H = 33;
+
+export const DEFAULT_FONT_FAMILY = "Roboto";
+export const DEFAULT_FONT_SIZE = 16;
+export const DEFAULT_FONT_COLOR = "";
+export const DEFAULT_BOLD = false;
+export const DEFAULT_ITALIC = false;
+export const DEFAULT_UNDERLINE = false;
+export const DEFAULT_STRIKETHROUGH = false;

@@ -6,7 +6,7 @@ import {
   COLOR_CELL_LIGHT_HEX,
 } from "./config";
 import { initInstances } from "./instance";
-import type { PartialCell, RegionMap, TextMap } from "./types";
+import type { PartialCell, RegionMap, TextMap, TextQuad } from "./types";
 import { Mat4 } from "./math";
 import { isTouchscreen } from "./utils";
 
@@ -31,16 +31,6 @@ watch(() => {
 export const [instances, setInstances] = ref(initInstances(10));
 export const [projection, setProjection] = ref(Mat4.identity());
 
-type TextQuad = {
-  text: string;
-  fontFamily?: string;
-  fontSize?: number;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
 export function createSheet(sheetName: string) {
   const [name, setName] = ref(sheetName);
   const [lastSelectedRegions, setLastSelectedRegions] = ref(new Set<string>());
@@ -48,7 +38,7 @@ export function createSheet(sheetName: string) {
   const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
   const [colorRegions, setColorRegions] = ref<RegionMap>({});
   const [colorQuads, setColorQuads] = ref<Record<string, number[]>>({});
-  const [textCells, setTextCells] = ref<TextMap>({}); // TODO: store font details here
+  const [textCells, setTextCells] = ref<TextMap>({});
   const [textQuads, setTextQuads] = ref<TextQuad[]>([]);
   const [colOffsets, setColOffsets] = ref<Record<number, number>>({});
   const [rowOffsets, setRowOffsets] = ref<Record<number, number>>({});

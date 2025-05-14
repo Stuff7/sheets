@@ -27,7 +27,29 @@ export type Cell = {
   row: number;
 } & Pos2D;
 
-export type TextMap = Record<number, string>;
+export type FontStyle = {
+  family: string;
+  size: number;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+};
+
+export type TextCell = {
+  text: string;
+  style: FontStyle;
+};
+
+type TextQuad = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} & TextCell;
+
+export type TextMap = Record<number, TextCell>;
 export type CellMap = Record<number, Quad>;
 export type PartialCellMap = Record<number, Partial<Quad>>;
 export type OffsetMap = Record<number, number>;
