@@ -71,10 +71,6 @@ html, body {
     @apply bg-zinc-200 text-zinc-800 hover:bg-indigo-500 active:bg-indigo-900 hover:text-zinc-200 active:text-zinc-200;
     @apply dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-emerald-500 dark:active:bg-emerald-100 dark:hover:text-zinc-800 dark:active:text-zinc-800;
 
-    &.focus-children {
-      @apply has-focus:outline has-focus:outline-indigo-500 dark:has-focus:outline-emerald-500 -outline-offset-1;
-    }
-
     &.selected {
       @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100;
     }
@@ -101,10 +97,22 @@ button, input, textarea, select {
   @apply focus:outline focus:outline-indigo-500 dark:focus:outline-emerald-500 -outline-offset-1;
 }
 
+:invalid {
+  @apply outline-rose-500!;
+}
+
+.focus-children {
+  @apply has-focus:outline has-focus:outline-indigo-500 dark:has-focus:outline-emerald-500 -outline-offset-1;
+}
+
 .focus-sibling {
   @apply peer-focus:outline peer-focus:outline-indigo-500 dark:peer-focus:outline-emerald-500 -outline-offset-1;
 }
 
 input:not([type=color]), textarea {
   @apply px-2 rounded-xs bg-zinc-50 text-zinc-900 outline-indigo-700 dark:bg-zinc-900 dark:text-zinc-50 dark:outline-emerald-400;
+}
+
+.slide-enter-from, .slide-leave-to {
+  @apply translate-y-0;
 }

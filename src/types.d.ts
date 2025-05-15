@@ -39,21 +39,25 @@ export type FontStyle = {
 
 export type TextCell = {
   text: string;
+  computed: string | Error;
   style: FontStyle;
 };
 
 type TextQuad = {
+  cell: TextCell;
   x: number;
   y: number;
   w: number;
   h: number;
-} & TextCell;
+};
 
 export type TextMap = Record<number, TextCell>;
 export type CellMap = Record<number, Quad>;
 export type PartialCellMap = Record<number, Partial<Quad>>;
 export type OffsetMap = Record<number, number>;
 export type RegionMap = Record<string, Set<string>>;
+
+export type Sheets = Record<string, TextMap>;
 
 export type PartialCell = {
   index: number;

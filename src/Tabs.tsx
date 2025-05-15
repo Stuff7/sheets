@@ -9,6 +9,8 @@ import {
 } from "./state";
 import Alert from "./Alert";
 import Dbg from "./Dbg";
+import { SHEET_NAME_PATTERN_STR } from "./config";
+import Toast from "./Toast";
 
 export default function Tabs() {
   let nameInputEl!: HTMLInputElement;
@@ -16,8 +18,11 @@ export default function Tabs() {
   const [nameInputLen, setNameInputLen] = ref(currentSheet().name().length + 1);
   const [deleteIdx, setDeleteIdx] = ref(0);
   const [confirmationVisible, setConfirmationVisible] = ref(false);
+  const [toastOpen, setToastOpen] = ref(false);
 
   function hideNameInput() {
+    if (!nameInputEl.checkValidity()) return setToastOpen(true);
+
     setNameInput.byRef((input) => {
       input.visible = false;
     });
@@ -106,6 +111,7 @@ export default function Tabs() {
           style:top={`${nameInput().y}px`}
           style:min-width={`${currentSheet().name().length + 1}ch`}
           style:width={`${nameInputLen()}ch`}
+          pattern={`^${SHEET_NAME_PATTERN_STR}+$`}
           on:blur={hideNameInput}
           on:change={hideNameInput}
           on:input={(ev) => setNameInputLen(ev.currentTarget.value.length + 1)}
@@ -133,6 +139,12 @@ export default function Tabs() {
           </button>
         </menu>
       </Alert>
+      <Toast open={toastOpen()} onChange={setToastOpen} level="error">
+        <strong slot="header">Invalid name!</strong>
+        <p class="text-wrap text-center">
+          You can only use letters, digits and underscores
+        </p>
+      </Toast>
       <Dbg>
         <p>ALERT: {confirmationVisible()}</p>
       </Dbg>

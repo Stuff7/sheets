@@ -22,9 +22,12 @@ import {
   prefersDark,
   defaultCellColor,
   currentSheet,
+  sheets,
+  setCellText,
+  cellText,
 } from "./state";
 import Dbg from "./Dbg";
-import type { Cell, PartialCell } from "./types";
+import type { Cell, PartialCell, Sheets } from "./types";
 import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
@@ -41,8 +44,10 @@ import {
 } from "./region";
 import For from "jsx/components/For";
 import { selectedFont } from "./FontSelector";
+import { evaluateFormula } from "./sheetFormula/evaluator";
 
 export default function GridControls() {
+  // TODO: improve input sync
   let cellInput!: HTMLTextAreaElement;
   let isSelecting = false;
   let firstCol: PartialCell;
@@ -144,15 +149,45 @@ export default function GridControls() {
   }
 
   function addTextCell(text: string) {
-    if (!text) return;
+    if (!text) {
+      currentSheet().setTextCells.byRef((cells) => {
+        const idx = getCellIdx(inputCell.col, inputCell.row);
+        delete cells[idx];
+      });
+      setCellText("");
+      return;
+    }
+
     currentSheet().setTextCells.byRef((cells) => {
       const idx = getCellIdx(inputCell.col, inputCell.row);
       cells[idx] = {
         text,
+        computed: text,
         style: { ...selectedFont() },
       };
+
+      const sheetRecord: Sheets = {};
+      for (const sheet of sheets()) {
+        sheetRecord[sheet.name()] = sheet.textCells();
+      }
+
+      for (const value of Object.values(cells)) {
+        try {
+          value.computed =
+            value.text[0] === "="
+              ? evaluateFormula(
+                  value.text.slice(1),
+                  currentSheet().name(),
+                  sheetRecord,
+                ).toString()
+              : value.text;
+        } catch (e) {
+          value.computed = e;
+          console.error(e);
+        }
+      }
     });
-    cellInput.value = "";
+    setCellText("");
   }
 
   watchFn(
@@ -190,7 +225,7 @@ export default function GridControls() {
             endRow: row,
           });
           quads.push({
-            ...currentSheet().textCells()[cellIdx],
+            cell: currentSheet().textCells()[cellIdx],
             x: quad[0],
             y: quad[1],
             w: quad[2],
@@ -266,6 +301,10 @@ export default function GridControls() {
       pos.y = inputCell.y + offsetY - scroll().y;
       pos.width = getEffectiveCellWidth(inputCell.col);
       pos.height = getEffectiveCellHeight(inputCell.row);
+      setCellText(
+        currentSheet().textCells()[getCellIdx(inputCell.col, inputCell.row)]
+          ?.text ?? "",
+      );
       cellInput.focus();
     });
   }
@@ -286,27 +325,6 @@ export default function GridControls() {
           })
         }
       >
-        <For
-          each={currentSheet().textQuads()}
-          do={(t) => (
-            <div
-              class="absolute pointer-events-none text-wrap break-all py-1 px-2"
-              style:font-family={t().style.family ?? DEFAULT_FONT_FAMILY}
-              style:font-size={`${t().style.size ?? DEFAULT_FONT_SIZE}px`}
-              style:font-weight={t().style.bold ? "bold" : "normal"}
-              style:font-style={t().style.italic ? "italic" : "normal"}
-              style:text-decoration={t().style.underline ? "underline" : "none"}
-              style:color={t().style.color}
-              style:left={`${t().x}px`}
-              style:top={`${t().y}px`}
-              style:width={`${t().w}px`}
-              style:height={`${t().h}px`}
-            >
-              <s $if={t().style.strikethrough}>{t().text}</s>
-              <span $if={!t().style.strikethrough}>{t().text}</span>
-            </div>
-          )}
-        />
         <div
           style:width={`${CELL_W * MAX_COLS + totalOffsets(currentSheet().colOffsets())}px`}
           style:height={`${CELL_H * MAX_ROWS + totalOffsets(currentSheet().rowOffsets())}px`}
@@ -318,7 +336,41 @@ export default function GridControls() {
           on:touchmove={doSelection}
           on:touchend={endSelection}
           on:dblclick={showCellInput}
-        />
+        >
+          <For
+            each={currentSheet().textQuads()}
+            do={(t) => (
+              <div
+                class="absolute text-wrap break-all py-1 px-2"
+                style:font-family={t().cell.style.family ?? DEFAULT_FONT_FAMILY}
+                style:font-size={`${t().cell.style.size ?? DEFAULT_FONT_SIZE}px`}
+                style:font-weight={t().cell.style.bold ? "bold" : "normal"}
+                style:font-style={t().cell.style.italic ? "italic" : "normal"}
+                style:text-decoration-line={
+                  t().cell.computed instanceof Error
+                    ? ""
+                    : `${t().cell.style.underline ? "underline " : ""}${t().cell.style.strikethrough ? "line-through" : ""}`
+                }
+                style:color={t().cell.style.color}
+                style:left={`${t().x}px`}
+                style:top={`${t().y}px`}
+                style:width={`${t().w}px`}
+                style:height={`${t().h}px`}
+              >
+                <strong
+                  $if={t().cell.computed instanceof Error}
+                  class="font-mono text-base font-bold not-italic text-red-500"
+                  $title={t().cell.computed.toString()}
+                >
+                  ERROR
+                </strong>
+                <span $if={typeof t().cell.computed === "string"}>
+                  {t().cell.computed}
+                </span>
+              </div>
+            )}
+          />
+        </div>
       </div>
       <label
         class="absolute z-10 h-8 w-25"
@@ -331,6 +383,7 @@ export default function GridControls() {
         <textarea
           $ref={cellInput}
           class="h-full w-full p-1"
+          $value={cellText()}
           style:font-family={selectedFont().family ?? DEFAULT_FONT_FAMILY}
           style:font-size={`${selectedFont().size ?? DEFAULT_FONT_SIZE}px`}
           style:font-weight={selectedFont().bold ? "bold" : "normal"}
@@ -340,6 +393,7 @@ export default function GridControls() {
           }
           style:color={selectedFont().color}
           on:change={(e) => addTextCell(e.currentTarget.value)}
+          on:input={(ev) => setCellText(ev.currentTarget.value)}
         />
         <strong class="absolute -top-7 -left-1 p-1">
           {inputCellElem().id}

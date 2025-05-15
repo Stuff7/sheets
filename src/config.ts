@@ -27,3 +27,6 @@ export const DEFAULT_BOLD = false;
 export const DEFAULT_ITALIC = false;
 export const DEFAULT_UNDERLINE = false;
 export const DEFAULT_STRIKETHROUGH = false;
+
+export const SHEET_NAME_PATTERN_STR = "[A-Za-z0-9_]";
+export const SHEET_NAME_PATTERN = new RegExp(SHEET_NAME_PATTERN_STR);

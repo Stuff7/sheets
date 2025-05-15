@@ -1,3 +1,5 @@
+import { SHEET_NAME_PATTERN } from "~/config";
+
 export enum TokenType {
   Number = 0,
   Identifier = 1,
@@ -6,7 +8,8 @@ export enum TokenType {
   RParen = 4,
   Colon = 5,
   Comma = 6,
-  EOF = 7,
+  Bang = 7,
+  EOF = 8,
 }
 
 export interface Token {
@@ -16,7 +19,7 @@ export interface Token {
 
 export function lex(input: string): Token[] {
   const tokens: Token[] = [];
-  let i = 0;
+  let i = input[0] === "=" ? 1 : 0;
 
   while (i < input.length) {
     const c = input[i];
@@ -25,29 +28,24 @@ export function lex(input: string): Token[] {
       continue;
     }
 
-    // Number (integer or decimal)
     if (/\d/.test(c)) {
       let num = c;
       i++;
-      while (i < input.length && /[\d.]/.test(input[i])) {
-        num += input[i++];
-      }
+      while (i < input.length && /[\d.]/.test(input[i])) num += input[i++];
       tokens.push({ type: TokenType.Number, text: num });
       continue;
     }
 
-    // Identifier (columns A–Z+ lowercase rows a–z)
     if (/[A-Za-z]/.test(c)) {
       let id = c;
       i++;
-      while (i < input.length && /[A-Za-z]/.test(input[i])) {
+      while (i < input.length && SHEET_NAME_PATTERN.test(input[i])) {
         id += input[i++];
       }
       tokens.push({ type: TokenType.Identifier, text: id });
       continue;
     }
 
-    // Single-character tokens
     switch (c) {
       case "+":
       case "-":
@@ -70,6 +68,10 @@ export function lex(input: string): Token[] {
         break;
       case ",":
         tokens.push({ type: TokenType.Comma, text: c });
+        i++;
+        break;
+      case "!":
+        tokens.push({ type: TokenType.Bang, text: c });
         i++;
         break;
       default:

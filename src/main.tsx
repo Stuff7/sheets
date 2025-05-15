@@ -9,6 +9,8 @@ import {
   setCtrlPressed,
   ctrlPressed,
   currentSheet,
+  cellText,
+  setCellText,
 } from "./state";
 import GridControls from "./GridControls";
 import { isTouchscreen } from "./utils";
@@ -39,6 +41,7 @@ document.body.append(
     data-alerts
     class="absolute left-0 top-0 z-100 h-dvh w-dvw not-has-[[open=true]]:hidden bg-slate-950/50 backdrop-blur-xs"
   />,
+  <div data-toasts class="absolute px-4 left-0 bottom-0 z-100 w-dvw h-0" />,
 );
 
 function onKeyDown(ev: KeyboardEvent) {
@@ -115,6 +118,15 @@ document.body.prepend(
         <i>{prefersDark() ? "" : ""}</i>
       </button>
     </header>
+    <label class="flex gap-2 pl-6 items-center focus-children outlined">
+      <i></i>
+      <textarea
+        class="w-full font-mono py-1 outline-none"
+        $value={cellText()}
+        rows={1}
+        on:input={(ev) => setCellText(ev.currentTarget.value)}
+      />
+    </label>
     <article class="font-mono overflow-hidden max-w-dvw max-h-dvh grid grid-rows-[auto_minmax(0,1fr)] grid-cols-[max-content_minmax(0,1fr)]">
       <GridAxes />
       <GridControls />

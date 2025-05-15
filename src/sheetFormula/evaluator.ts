@@ -1,13 +1,17 @@
 import { Parser, type ASTNode } from "./parser";
 import { getCellIdx, fromAlphaUpper, fromAlphaLower } from "../utils";
-import type { TextMap } from "~/types";
+import type { Sheets } from "~/types";
 
 /**
- * Evaluate a formula: ranges yield number[], functions decide how to handle arrays.
+ * Evaluate a formula within a named sheet context; returns single number.
  */
-export function evaluateFormula(formula: string, sheet: TextMap): number {
+export function evaluateFormula(
+  formula: string,
+  sheetName: string,
+  sheets: Sheets,
+): number {
   const ast = new Parser(formula).parseExpression();
-  const result = evaluate(ast, sheet);
+  const result = evaluate(ast, sheetName, sheets);
   if (typeof result === "number") return result;
   throw new Error(`Formula did not evaluate to a single number: ${formula}`);
 }
@@ -16,30 +20,37 @@ export function evaluateFormula(formula: string, sheet: TextMap): number {
 type EvalResult = number | number[];
 
 /**
- * Recursively evaluate AST. Ranges => number[].
+ * Recursively evaluate AST; ranges => number[].
  */
-function evaluate(node: ASTNode, sheet: TextMap): EvalResult {
+function evaluate(
+  node: ASTNode,
+  sheetName: string,
+  sheets: Sheets,
+): EvalResult {
   switch (node.type) {
     case "number":
       return node.value;
 
     case "cell": {
       const [c, r] = parseCellId(node.id);
+      const targetSheet = node.sheet || sheetName;
+      const sheet = sheets[targetSheet];
+      if (!sheet) throw new Error(`Sheet not found: ${targetSheet}`);
       const idx = getCellIdx(c, r);
       const cell = sheet[idx];
-      if (!cell) throw new Error(`Cell ${node.id} not found`);
-      return evaluateFormula(cell.text, sheet);
+      if (!cell)
+        throw new Error(`Cell ${node.id} not found in sheet ${targetSheet}`);
+      return evaluateFormula(cell.text, targetSheet, sheets);
     }
 
     case "range":
-      return flattenRange(node, sheet);
+      return flattenRange(node, sheetName, sheets);
 
     case "binary": {
-      const L = evaluate(node.left, sheet);
-      const R = evaluate(node.right, sheet);
-      if (Array.isArray(L) || Array.isArray(R)) {
+      const L = evaluate(node.left, sheetName, sheets);
+      const R = evaluate(node.right, sheetName, sheets);
+      if (Array.isArray(L) || Array.isArray(R))
         throw new Error("Cannot use + - * / on arrays");
-      }
       switch (node.op) {
         case "+":
           return L + R;
@@ -55,8 +66,7 @@ function evaluate(node: ASTNode, sheet: TextMap): EvalResult {
     }
 
     case "func": {
-      // Raw args may be numbers or arrays
-      const rawArgs = node.args.map((arg) => evaluate(arg, sheet));
+      const rawArgs = node.args.map((arg) => evaluate(arg, sheetName, sheets));
       switch (node.name) {
         case "SUM":
           return rawArgs.reduce<number>(
@@ -73,11 +83,15 @@ function evaluate(node: ASTNode, sheet: TextMap): EvalResult {
 
 /** Helper: convert Range AST into an array of cell values */
 function flattenRange(
-  node: { start: string; end: string },
-  sheet: TextMap,
+  node: { start: string; end: string; sheet?: string },
+  sheetName: string,
+  sheets: Sheets,
 ): number[] {
   const [sc, sr] = parseCellId(node.start);
   const [ec, er] = parseCellId(node.end);
+  const targetSheet = node.sheet || sheetName;
+  const sheet = sheets[targetSheet];
+  if (!sheet) throw new Error(`Sheet not found: ${targetSheet}`);
   const out: number[] = [];
 
   for (let c = sc; c <= ec; c++) {
@@ -85,7 +99,7 @@ function flattenRange(
       const idx = getCellIdx(c, r);
       const cell = sheet[idx];
       if (cell) {
-        const val = evaluateFormula(cell.text, sheet);
+        const val = evaluateFormula(cell.text, targetSheet, sheets);
         out.push(val);
       }
     }

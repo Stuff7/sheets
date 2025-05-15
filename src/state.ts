@@ -16,6 +16,7 @@ export const [ctrlPressed, setCtrlPressed] = ref(isTouchscreen);
 export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
 export const [touchSelection, setTouchSelection] = ref(false);
+export const [cellText, setCellText] = ref("");
 
 export const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,

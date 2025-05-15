@@ -9,8 +9,8 @@ const PRECEDENCE: Record<string, number> = {
 
 export type ASTNode =
   | { type: "number"; value: number }
-  | { type: "cell"; id: string }
-  | { type: "range"; start: string; end: string }
+  | { type: "cell"; id: string; sheet?: string }
+  | { type: "range"; start: string; end: string; sheet?: string }
   | { type: "binary"; op: string; left: ASTNode; right: ASTNode }
   | { type: "func"; name: string; args: ASTNode[] };
 
@@ -47,9 +47,31 @@ export class Parser {
     switch (token.type) {
       case TokenType.Number:
         return { type: "number", value: Number.parseFloat(token.text) };
-
-      case TokenType.Identifier:
-        // Could be cell ID, range (handled in led), or function call
+      case TokenType.Identifier: {
+        // sheet reference? look for '!'
+        if (this.peek().type === TokenType.Bang) {
+          const sheetName = token.text;
+          this.next(); // consume '!'
+          const nextTok = this.next();
+          if (nextTok.type !== TokenType.Identifier)
+            throw new Error(`Expected cell ref after !, got ${nextTok.text}`);
+          const cellId = nextTok.text;
+          // range?
+          if (this.peek().type === TokenType.Colon) {
+            this.next(); // consume ':'
+            const endTok = this.next();
+            if (endTok.type !== TokenType.Identifier)
+              throw new Error(`Invalid range end: ${endTok.text}`);
+            return {
+              type: "range",
+              sheet: sheetName,
+              start: cellId,
+              end: endTok.text,
+            };
+          }
+          return { type: "cell", sheet: sheetName, id: cellId };
+        }
+        // function call?
         if (this.peek().type === TokenType.LParen) {
           const name = token.text;
           this.next(); // consume '('
@@ -63,13 +85,12 @@ export class Parser {
           return { type: "func", name, args };
         }
         return { type: "cell", id: token.text };
-
+      }
       case TokenType.LParen: {
         const expr = this.parseExpression();
         this.expect(TokenType.RParen);
         return expr;
       }
-
       default:
         throw new Error(`Unexpected token in nud: ${token.text}`);
     }
@@ -82,21 +103,19 @@ export class Parser {
         const right = this.parseExpression(prec);
         return { type: "binary", op: token.text, left, right };
       }
-
       case TokenType.Colon: {
-        // Build a range pattern: left must be a cell
         const start =
           left.type === "cell"
             ? left.id
             : (() => {
                 throw new Error("Invalid range start");
               })();
-        const endToken = this.next();
-        if (endToken.type !== TokenType.Identifier)
-          throw new Error(`Invalid range end: ${endToken.text}`);
-        return { type: "range", start, end: endToken.text };
+        const sheet = left.sheet;
+        const endTok = this.next();
+        if (endTok.type !== TokenType.Identifier)
+          throw new Error(`Invalid range end: ${endTok.text}`);
+        return { type: "range", sheet, start, end: endTok.text };
       }
-
       default:
         throw new Error(`Unexpected token in led: ${token.text}`);
     }
@@ -104,7 +123,7 @@ export class Parser {
 
   private lbp(token: Token): number {
     if (token.type === TokenType.Operator) return PRECEDENCE[token.text] || 0;
-    if (token.type === TokenType.Colon) return 30; // range binds tighter than any operator
+    if (token.type === TokenType.Colon) return 30;
     return 0;
   }
 

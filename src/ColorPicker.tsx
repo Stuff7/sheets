@@ -14,7 +14,7 @@ export default function ColorPicker(props: ColorPickerProps) {
         data-icon
         class="plain py-1 px-2 rounded-sm"
         type="button"
-        title="Clear text color"
+        title="Clear"
         on:click={() => props.onChange(props.defaultColor ?? "")}
       >
         
