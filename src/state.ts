@@ -8,7 +8,8 @@ import {
 import { initInstances } from "./instance";
 import type { PartialCell, RegionMap, TextMap, TextQuad } from "./types";
 import { Mat4 } from "./math";
-import { isTouchscreen } from "./utils";
+import { getCellId, getCellIdx, isTouchscreen } from "./utils";
+import { parseRegion, regionToQuad } from "./region";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
 export const [selectedColor, setSelectedColor] = ref("");
@@ -17,6 +18,43 @@ export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
 export const [touchSelection, setTouchSelection] = ref(false);
 export const [cellText, setCellText] = ref("");
+
+export const [cellInputEl, setCellInputEl] = ref<HTMLTextAreaElement>();
+export const [isCellInputVisible, setIsCellInputVisible] = ref(false);
+export const [cellInputInfo, setCellInputInfo] = ref({
+  x: 0,
+  y: 0,
+  col: 0,
+  row: 0,
+  width: CELL_W,
+  height: CELL_H,
+  id: "Aa",
+});
+
+export function positionCellInput() {
+  setCellInputInfo.byRef((pos) => {
+    const region = parseRegion(
+      currentSheet().selectedRegions().values().next().value || "0,0:0,0",
+    );
+    pos.id = getCellId(region.startCol, region.startRow);
+    const quad = regionToQuad({
+      startCol: region.startCol,
+      startRow: region.startRow,
+      endCol: region.startCol,
+      endRow: region.startRow,
+    });
+    pos.col = region.startCol;
+    pos.row = region.startRow;
+    pos.x = quad[0];
+    pos.y = quad[1];
+    pos.width = quad[2];
+    pos.height = quad[3];
+    setCellText(
+      currentSheet().textCells()[getCellIdx(region.startCol, region.startRow)]
+        ?.text ?? "",
+    );
+  });
+}
 
 export const [prefersDark, setPrefersDark] = ref(
   matchMedia("(prefers-color-scheme: dark)").matches,
@@ -34,7 +72,9 @@ export const [projection, setProjection] = ref(Mat4.identity());
 
 export function createSheet(sheetName: string) {
   const [name, setName] = ref(sheetName);
-  const [lastSelectedRegions, setLastSelectedRegions] = ref(new Set<string>());
+  const [lastSelectedRegions, setLastSelectedRegions] = ref(
+    new Set<string>(["0,0:0,0"]),
+  );
   const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
   const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
   const [colorRegions, setColorRegions] = ref<RegionMap>({});

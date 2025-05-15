@@ -1,18 +1,15 @@
-import { ref, watchFn } from "jsx";
+import { watchFn } from "jsx";
 import {
   totalOffsets,
   totalOffsetsRange,
-  getCellId,
   getMousePosition,
   isTouchscreen,
-  getCellIdx,
+  getCellId,
 } from "./utils";
 import {
   canvasRect,
   computeFirstVisibleColumn,
   computeFirstVisibleRow,
-  getEffectiveCellHeight,
-  getEffectiveCellWidth,
   scroll,
   setScroll,
   setScrollEl,
@@ -22,20 +19,16 @@ import {
   prefersDark,
   defaultCellColor,
   currentSheet,
-  sheets,
-  setCellText,
+  cellInputEl,
+  isCellInputVisible,
   cellText,
+  positionCellInput,
+  cellInputInfo,
+  setCellText,
 } from "./state";
 import Dbg from "./Dbg";
-import type { Cell, PartialCell, Sheets } from "./types";
-import {
-  DEFAULT_FONT_FAMILY,
-  DEFAULT_FONT_SIZE,
-  CELL_H,
-  CELL_W,
-  MAX_COLS,
-  MAX_ROWS,
-} from "./config";
+import type { Cell, PartialCell } from "./types";
+import { CELL_H, CELL_W, MAX_COLS, MAX_ROWS } from "./config";
 import {
   parseRegion,
   regionToQuad,
@@ -44,11 +37,8 @@ import {
 } from "./region";
 import For from "jsx/components/For";
 import { selectedFont } from "./FontSelector";
-import { evaluateFormula } from "./sheetFormula/evaluator";
 
 export default function GridControls() {
-  // TODO: improve input sync
-  let cellInput!: HTMLTextAreaElement;
   let isSelecting = false;
   let firstCol: PartialCell;
   let firstRow: PartialCell;
@@ -56,14 +46,10 @@ export default function GridControls() {
   let areaLeft = {} as Cell;
   let areaTop = {} as Cell;
   let areaStart = {} as Cell;
-  const [isCellInputVisible, setIsCellInputVisible] = ref(false);
-  const [inputCellElem, setInputCellElem] = ref({
-    x: 0,
-    y: 0,
-    width: CELL_W,
-    height: CELL_H,
-    id: "Aa",
-  });
+
+  let cellInputStart = 0;
+  let cellInputEnd = 0;
+  let cellInputText = "";
 
   watchFn(scroll, () => {
     firstCol = computeFirstVisibleColumn(scroll().x);
@@ -76,7 +62,6 @@ export default function GridControls() {
   }
 
   let hasDragged = false;
-  let lastCell: Cell | null = null;
 
   function startSelection(ev: MouseEvent | TouchEvent) {
     if (isTouchscreen && !touchSelection()) return;
@@ -90,6 +75,10 @@ export default function GridControls() {
     if (areaTop.row == null || areaStart.row < areaTop.row) {
       areaTop = { ...areaStart };
     }
+
+    cellInputStart = cellInputEl().selectionStart;
+    cellInputEnd = cellInputEl().selectionEnd;
+    cellInputText = cellInputEl().value;
 
     hasDragged = false;
     updateSelection(ev);
@@ -123,15 +112,6 @@ export default function GridControls() {
   function updateSelection(ev: MouseEvent | TouchEvent) {
     const areaEnd = getCellAtCursor(ev);
 
-    if (
-      lastCell &&
-      lastCell.col === areaEnd.col &&
-      lastCell.row === areaEnd.row
-    ) {
-      return;
-    }
-    lastCell = { ...areaEnd };
-
     if (areaEnd.col !== areaStart.col || areaEnd.row !== areaStart.row) {
       hasDragged = true;
     }
@@ -146,48 +126,31 @@ export default function GridControls() {
     const sel = new Set(currentSheet().lastSelectedRegions());
     carveRegion(sel, startCol, startRow, endCol, endRow);
     currentSheet().setSelectedRegions(sel);
-  }
 
-  function addTextCell(text: string) {
-    if (!text) {
-      currentSheet().setTextCells.byRef((cells) => {
-        const idx = getCellIdx(inputCell.col, inputCell.row);
-        delete cells[idx];
-      });
-      setCellText("");
-      return;
+    if (cellText()[0] !== "=") {
+      cellInputEl().blur();
+    } else if (document.activeElement === cellInputEl()) {
+      const selection = currentSheet().selectedRegions().values().next()?.value;
+      if (!selection) return;
+
+      const region = parseRegion(selection);
+      let text = getCellId(region.startCol, region.startRow);
+      if (
+        region.startCol !== region.endCol ||
+        region.startRow !== region.endRow
+      ) {
+        text = `${text}:${getCellId(region.endCol, region.endRow)}`;
+      }
+
+      setCellText(
+        cellInputText.slice(0, cellInputStart) +
+          text +
+          cellInputText.slice(cellInputEnd),
+      );
+
+      cellInputEl().selectionStart = cellInputEl().selectionEnd =
+        cellInputStart + text.length;
     }
-
-    currentSheet().setTextCells.byRef((cells) => {
-      const idx = getCellIdx(inputCell.col, inputCell.row);
-      cells[idx] = {
-        text,
-        computed: text,
-        style: { ...selectedFont() },
-      };
-
-      const sheetRecord: Sheets = {};
-      for (const sheet of sheets()) {
-        sheetRecord[sheet.name()] = sheet.textCells();
-      }
-
-      for (const value of Object.values(cells)) {
-        try {
-          value.computed =
-            value.text[0] === "="
-              ? evaluateFormula(
-                  value.text.slice(1),
-                  currentSheet().name(),
-                  sheetRecord,
-                ).toString()
-              : value.text;
-        } catch (e) {
-          value.computed = e;
-          console.error(e);
-        }
-      }
-    });
-    setCellText("");
   }
 
   watchFn(
@@ -289,24 +252,9 @@ export default function GridControls() {
       firstRow.remainder;
   }
 
-  const inputCell = {} as Cell;
-  function showCellInput(ev: MouseEvent) {
-    setIsCellInputVisible(true);
-    const { x: offsetX, y: offsetY } = canvasRect();
-
-    setInputCellElem.byRef((pos) => {
-      getCellAtCursor(ev, inputCell);
-      pos.id = getCellId(inputCell.col, inputCell.row);
-      pos.x = inputCell.x + offsetX - scroll().x;
-      pos.y = inputCell.y + offsetY - scroll().y;
-      pos.width = getEffectiveCellWidth(inputCell.col);
-      pos.height = getEffectiveCellHeight(inputCell.row);
-      setCellText(
-        currentSheet().textCells()[getCellIdx(inputCell.col, inputCell.row)]
-          ?.text ?? "",
-      );
-      cellInput.focus();
-    });
+  function showCellInput() {
+    positionCellInput();
+    cellInputEl().focus();
   }
 
   return (
@@ -326,9 +274,9 @@ export default function GridControls() {
         }
       >
         <div
+          tabindex={0}
           style:width={`${CELL_W * MAX_COLS + totalOffsets(currentSheet().colOffsets())}px`}
           style:height={`${CELL_H * MAX_ROWS + totalOffsets(currentSheet().rowOffsets())}px`}
-          on:click={() => setIsCellInputVisible(false)}
           on:mousedown={startSelection}
           on:mousemove={doSelection}
           on:mouseup={endSelection}
@@ -342,8 +290,8 @@ export default function GridControls() {
             do={(t) => (
               <div
                 class="absolute text-wrap break-all py-1 px-2"
-                style:font-family={t().cell.style.family ?? DEFAULT_FONT_FAMILY}
-                style:font-size={`${t().cell.style.size ?? DEFAULT_FONT_SIZE}px`}
+                style:font-family={t().cell.style.family}
+                style:font-size={`${t().cell.style.size}px`}
                 style:font-weight={t().cell.style.bold ? "bold" : "normal"}
                 style:font-style={t().cell.style.italic ? "italic" : "normal"}
                 style:text-decoration-line={
@@ -362,7 +310,7 @@ export default function GridControls() {
                   class="font-mono text-base font-bold not-italic text-red-500"
                   $title={t().cell.computed.toString()}
                 >
-                  ERROR
+                  #ERROR!
                 </strong>
                 <span $if={typeof t().cell.computed === "string"}>
                   {t().cell.computed}
@@ -371,34 +319,27 @@ export default function GridControls() {
             )}
           />
         </div>
-      </div>
-      <label
-        class="absolute z-10 h-8 w-25"
-        class:hidden={!isCellInputVisible()}
-        style:left={`${inputCellElem().x}px`}
-        style:top={`${inputCellElem().y}px`}
-        style:width={`${inputCellElem().width}px`}
-        style:height={`${inputCellElem().height}px`}
-      >
-        <textarea
-          $ref={cellInput}
-          class="h-full w-full p-1"
-          $value={cellText()}
-          style:font-family={selectedFont().family ?? DEFAULT_FONT_FAMILY}
-          style:font-size={`${selectedFont().size ?? DEFAULT_FONT_SIZE}px`}
+        <pre
+          class="absolute z-10 h-8 w-25 p-1 outline outline-indigo-500 dark:outline-emerald-500 whitespace-pre-wrap pointer-events-none"
+          class:hidden={!isCellInputVisible()}
+          style:background-color={defaultCellColor()}
+          style:left={`${cellInputInfo().x}px`}
+          style:top={`${cellInputInfo().y}px`}
+          style:width={`${cellInputInfo().width}px`}
+          style:height={`${cellInputInfo().height}px`}
+          style:font-family={selectedFont().family}
+          style:font-size={`${selectedFont().size}px`}
           style:font-weight={selectedFont().bold ? "bold" : "normal"}
           style:font-style={selectedFont().italic ? "italic" : "normal"}
-          style:text-decoration={
-            selectedFont().underline ? "underline" : "none"
-          }
+          style:text-decoration-line={`${selectedFont().underline ? "underline " : ""}${selectedFont().strikethrough ? "line-through" : ""}`}
           style:color={selectedFont().color}
-          on:change={(e) => addTextCell(e.currentTarget.value)}
-          on:input={(ev) => setCellText(ev.currentTarget.value)}
-        />
-        <strong class="absolute -top-7 -left-1 p-1">
-          {inputCellElem().id}
-        </strong>
-      </label>
+        >
+          {cellText()}
+          <strong class="absolute -top-6 -left-1 p-1 font-mono">
+            {cellInputInfo().id}
+          </strong>
+        </pre>
+      </div>
       <Dbg>
         <p>
           Colored:{" "}
@@ -415,6 +356,7 @@ export default function GridControls() {
         <p>Texts: {JSON.stringify(currentSheet().textCells(), null, 2)}</p>
         <p>ColOffsets: {JSON.stringify(currentSheet().colOffsets())}</p>
         <p>RowOffsets: {JSON.stringify(currentSheet().rowOffsets())}</p>
+        <p>inputCellInfo: {JSON.stringify(cellInputInfo(), null, 2)}</p>
       </Dbg>
     </>
   );

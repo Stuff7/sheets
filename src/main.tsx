@@ -1,6 +1,13 @@
 import { ref } from "jsx";
+import "./render";
 import Canvas from "./Canvas";
 import Dialog from "./Dialog";
+import GridControls from "./GridControls";
+import GridAxes from "./GridAxes";
+import CellInput from "./CellInput";
+import Tabs from "./Tabs";
+import CellColorPicker from "./CellColorPicker";
+import FontSelector from "./FontSelector";
 import {
   prefersDark,
   setPrefersDark,
@@ -9,20 +16,11 @@ import {
   setCtrlPressed,
   ctrlPressed,
   currentSheet,
-  cellText,
-  setCellText,
 } from "./state";
-import GridControls from "./GridControls";
 import { isTouchscreen } from "./utils";
-import GridAxes from "./GridAxes";
 import { serializeRegion } from "./region";
 import { MAX_COLS, MAX_ROWS } from "./config";
-import CellColorPicker from "./CellColorPicker";
-import FontSelector from "./FontSelector";
 import { decodeXLSXData, encodeXLSXData, formatSheetData } from "./saves";
-import Tabs from "./Tabs";
-import "./parser";
-import "./render";
 
 const [dbg, setDbg] = ref(false);
 
@@ -118,15 +116,7 @@ document.body.prepend(
         <i>{prefersDark() ? "" : ""}</i>
       </button>
     </header>
-    <label class="flex gap-2 pl-6 items-center focus-children outlined">
-      <i></i>
-      <textarea
-        class="w-full font-mono py-1 outline-none"
-        $value={cellText()}
-        rows={1}
-        on:input={(ev) => setCellText(ev.currentTarget.value)}
-      />
-    </label>
+    <CellInput />
     <article class="font-mono overflow-hidden max-w-dvw max-h-dvh grid grid-rows-[auto_minmax(0,1fr)] grid-cols-[max-content_minmax(0,1fr)]">
       <GridAxes />
       <GridControls />

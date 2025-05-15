@@ -87,11 +87,42 @@ function flattenRange(
   sheetName: string,
   sheets: Sheets,
 ): number[] {
-  const [sc, sr] = parseCellId(node.start);
-  const [ec, er] = parseCellId(node.end);
   const targetSheet = node.sheet || sheetName;
   const sheet = sheets[targetSheet];
   if (!sheet) throw new Error(`Sheet not found: ${targetSheet}`);
+
+  // Detect full column (e.g., A:A)
+  const fullColumn = /^[A-Z]+$/.test(node.start) && node.start === node.end;
+  // Detect full row (e.g., b:b)
+  const fullRow = /^[a-z]+$/.test(node.start) && node.start === node.end;
+
+  let sc: number;
+  let ec: number;
+  let sr: number;
+  let er: number;
+
+  if (fullColumn) {
+    // Column remains constant, rows span all lowercase (a-z)
+    sc = fromAlphaUpper(node.start);
+    ec = sc;
+    sr = fromAlphaLower("a");
+    er = fromAlphaLower("z");
+  } else if (fullRow) {
+    // Row remains constant, columns span all uppercase (A-Z)
+    sr = fromAlphaLower(node.start);
+    er = sr;
+    sc = fromAlphaUpper("A");
+    ec = fromAlphaUpper("Z");
+  } else {
+    // Standard range A1:B2, a:b etc.
+    const [scParsed, srParsed] = parseCellId(node.start);
+    const [ecParsed, erParsed] = parseCellId(node.end);
+    sc = scParsed;
+    sr = srParsed;
+    ec = ecParsed;
+    er = erParsed;
+  }
+
   const out: number[] = [];
 
   for (let c = sc; c <= ec; c++) {

@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Set up Git
+      run: |
+        git config --global user.email "cuentafrst@gmail.com"
+        git config --global user.name "Armando"
+
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: NPM Build
+      run: |
+        npm install
+        npm run build
+
+    - name: Create GitHub Pages Branch
+      run: |
+        git checkout -b gh-pages
+        git rm -rf .
+        rsync -av dist/ .
+        rm -rf dist
+        git add .
+        git commit -m "Build"
+
+    - name: Push GitHub Pages Branch
+      uses: ad-m/github-push-action@v0.6.0
+      with:
+        branch: gh-pages
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        force: true
