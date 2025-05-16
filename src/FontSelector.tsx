@@ -9,6 +9,7 @@ import {
   DEFAULT_ITALIC,
   DEFAULT_STRIKETHROUGH,
   DEFAULT_UNDERLINE,
+  DIVIDER_STYLE,
   MAX_COLS,
 } from "./config";
 import { parseRegion, regionsOverlap } from "./region";
@@ -76,6 +77,7 @@ export default function FontSelector() {
           +
         </button>
       </fieldset>
+      <div class={DIVIDER_STYLE} />
       <Checkbox
         checked={selectedFont().bold}
         onChange={(v) => updateFont("bold", v)}
@@ -100,6 +102,7 @@ export default function FontSelector() {
       >
         <s>S</s>
       </Checkbox>
+      <div class={DIVIDER_STYLE} />
       <ColorPicker
         color={selectedFont().color}
         onChange={(v) => updateFont("color", v)}

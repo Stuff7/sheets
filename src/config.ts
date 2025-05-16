@@ -14,6 +14,8 @@ export const COLOR_CELL_LIGHT_HEX = "#fafafa"; // zinc-50
 export const COLOR_CELL_DARK = hexToRgba(COLOR_CELL_DARK_HEX);
 export const COLOR_CELL_LIGHT = hexToRgba(COLOR_CELL_LIGHT_HEX);
 
+export const DIVIDER_STYLE = "h-full min-w-px bg-zinc-400 dark:bg-zinc-700";
+
 export const MAX_COLS = 9e4;
 export const MAX_ROWS = 2e5;
 

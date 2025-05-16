@@ -6,10 +6,17 @@ import {
   COLOR_CELL_LIGHT_HEX,
 } from "./config";
 import { initInstances } from "./instance";
-import type { PartialCell, RegionMap, TextMap, TextQuad } from "./types";
+import type {
+  PartialCell,
+  RegionMap,
+  Sheets,
+  TextMap,
+  TextQuad,
+} from "./types";
 import { Mat4 } from "./math";
 import { getCellId, getCellIdx, isTouchscreen } from "./utils";
 import { parseRegion, regionToQuad } from "./region";
+import { evaluateFormula } from "./sheetFormula/evaluator";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
 export const [selectedColor, setSelectedColor] = ref("");
@@ -106,6 +113,29 @@ export function createSheet(sheetName: string) {
     rowOffsets,
     setRowOffsets,
   };
+}
+
+export function computeCells(cells: TextMap) {
+  const sheetRecord: Sheets = {};
+  for (const sheet of sheets()) {
+    sheetRecord[sheet.name()] = sheet.textCells();
+  }
+
+  for (const value of Object.values(cells)) {
+    try {
+      value.computed =
+        value.text[0] === "="
+          ? evaluateFormula(
+              value.text.slice(1),
+              currentSheet().name(),
+              sheetRecord,
+            ).toString()
+          : value.text;
+    } catch (e) {
+      value.computed = e;
+      console.error(e);
+    }
+  }
 }
 
 export type Sheet = ReturnType<typeof createSheet>;

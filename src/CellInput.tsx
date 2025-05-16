@@ -3,18 +3,23 @@ import {
   currentSheet,
   setCellInputEl,
   setCellText,
-  sheets,
   setIsCellInputVisible,
   positionCellInput,
   cellInputInfo,
+  computeCells,
 } from "./state";
 import { getCellIdx } from "./utils";
 import { selectedFont } from "./FontSelector";
-import type { Sheets } from "./types";
-import { evaluateFormula } from "./sheetFormula/evaluator";
 
 export default function CellInput() {
+  let shouldSave = true;
   function addTextCell(text: string) {
+    if (!shouldSave) {
+      shouldSave = true;
+      setCellText("");
+      return;
+    }
+
     if (!text) {
       currentSheet().setTextCells.byRef((cells) => {
         const idx = getCellIdx(cellInputInfo().col, cellInputInfo().row);
@@ -32,26 +37,7 @@ export default function CellInput() {
         style: { ...selectedFont() },
       };
 
-      const sheetRecord: Sheets = {};
-      for (const sheet of sheets()) {
-        sheetRecord[sheet.name()] = sheet.textCells();
-      }
-
-      for (const value of Object.values(cells)) {
-        try {
-          value.computed =
-            value.text[0] === "="
-              ? evaluateFormula(
-                  value.text.slice(1),
-                  currentSheet().name(),
-                  sheetRecord,
-                ).toString()
-              : value.text;
-        } catch (e) {
-          value.computed = e;
-          console.error(e);
-        }
-      }
+      computeCells(cells);
     });
     setCellText("");
   }
@@ -65,6 +51,10 @@ export default function CellInput() {
   function onSubmit(this: HTMLTextAreaElement, ev: KeyboardEvent) {
     if (ev.key === "Enter" && !ev.shiftKey) {
       ev.preventDefault();
+      this.blur();
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      shouldSave = false;
       this.blur();
     }
   }
