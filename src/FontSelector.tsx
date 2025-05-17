@@ -1,6 +1,6 @@
 import { ref } from "jsx";
 import FixedFor from "jsx/components/FixedFor";
-import { currentSheet } from "./state";
+import { currentSheet, forEachSelectedTextCell } from "./state";
 import {
   DEFAULT_BOLD,
   DEFAULT_FONT_COLOR,
@@ -10,9 +10,7 @@ import {
   DEFAULT_STRIKETHROUGH,
   DEFAULT_UNDERLINE,
   DIVIDER_STYLE,
-  MAX_COLS,
 } from "./config";
-import { parseRegion, regionsOverlap } from "./region";
 import type { FontStyle } from "./types";
 import ColorPicker from "./ColorPicker";
 import Checkbox from "./Checkbox";
@@ -23,23 +21,9 @@ export default function FontSelector() {
       f[k] = v;
     });
     currentSheet().setTextCells.byRef((textCells) => {
-      for (const cellIdx in textCells) {
-        const idx = +cellIdx;
-        const col = idx % MAX_COLS;
-        const row = Math.floor(idx / MAX_COLS);
-        for (const selection of currentSheet().selectedRegions()) {
-          if (
-            regionsOverlap(parseRegion(selection), {
-              startCol: col,
-              startRow: row,
-              endCol: col,
-              endRow: row,
-            })
-          ) {
-            textCells[cellIdx].style[k] = v;
-          }
-        }
-      }
+      forEachSelectedTextCell(textCells, (tc) => {
+        tc.style[k] = v;
+      });
     });
   }
 

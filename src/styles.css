@@ -51,6 +51,10 @@
   }
 }
 
+@utility rounded-square {
+  @apply px-2 rounded-sm h-full aspect-square text-center;
+}
+
 html, body {
   @apply accent-indigo-500 dark:accent-emerald-500 bg-zinc-50 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-50 overflow-hidden! fixed h-dvh w-dvw;
 }

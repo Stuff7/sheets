@@ -7,38 +7,40 @@ import {
   positionCellInput,
   cellInputInfo,
   computeCells,
+  lastFormulaRegion,
 } from "./state";
 import { getCellIdx } from "./utils";
 import { selectedFont } from "./FontSelector";
 
 export default function CellInput() {
   let shouldSave = true;
-  function addTextCell(text: string) {
+
+  function addTextCell() {
+    setIsCellInputVisible(false);
+
     if (!shouldSave) {
       shouldSave = true;
       setCellText("");
       return;
     }
 
-    if (!text) {
+    const text = cellText();
+    const idx = getCellIdx(cellInputInfo().col, cellInputInfo().row);
+
+    if (text) {
       currentSheet().setTextCells.byRef((cells) => {
-        const idx = getCellIdx(cellInputInfo().col, cellInputInfo().row);
-        delete cells[idx];
+        cells[idx] = {
+          text,
+          computed: text,
+          style: { ...selectedFont() },
+        };
+
+        computeCells(cells);
       });
-      setCellText("");
-      return;
+    } else {
+      currentSheet().setTextCells.byRef((cells) => delete cells[idx]);
     }
 
-    currentSheet().setTextCells.byRef((cells) => {
-      const idx = getCellIdx(cellInputInfo().col, cellInputInfo().row);
-      cells[idx] = {
-        text,
-        computed: text,
-        style: { ...selectedFont() },
-      };
-
-      computeCells(cells);
-    });
     setCellText("");
   }
 
@@ -59,6 +61,20 @@ export default function CellInput() {
     }
   }
 
+  function onKeyUp(this: HTMLTextAreaElement, ev: KeyboardEvent) {
+    if (
+      ev.key === "Shift" ||
+      ev.key === "Control" ||
+      ev.key === "Alt" ||
+      ev.key === "Meta"
+    )
+      return;
+
+    lastFormulaRegion.start = this.selectionStart;
+    lastFormulaRegion.end = this.selectionEnd;
+    lastFormulaRegion.text = this.value;
+  }
+
   function onFocus() {
     positionCellInput();
     setIsCellInputVisible(true);
@@ -73,10 +89,10 @@ export default function CellInput() {
         $value={cellText()}
         rows={1}
         on:keydown={onSubmit}
-        on:change={(ev) => addTextCell(ev.currentTarget.value)}
+        on:keyup={onKeyUp}
         on:input={onInput}
         on:focus={onFocus}
-        on:blur={() => setIsCellInputVisible(false)}
+        on:blur={addTextCell}
       />
     </label>
   );

@@ -4,18 +4,25 @@ import {
   CELL_W,
   COLOR_CELL_DARK_HEX,
   COLOR_CELL_LIGHT_HEX,
+  MAX_COLS,
 } from "./config";
 import { initInstances } from "./instance";
 import type {
   PartialCell,
   RegionMap,
   Sheets,
+  TextCell,
   TextMap,
   TextQuad,
 } from "./types";
 import { Mat4 } from "./math";
-import { getCellId, getCellIdx, isTouchscreen } from "./utils";
-import { parseRegion, regionToQuad } from "./region";
+import { getCellId, isTouchscreen } from "./utils";
+import {
+  parseRegion,
+  type Region,
+  regionsOverlap,
+  regionToQuad,
+} from "./region";
 import { evaluateFormula } from "./sheetFormula/evaluator";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
@@ -38,11 +45,21 @@ export const [cellInputInfo, setCellInputInfo] = ref({
   id: "Aa",
 });
 
+export const lastFormulaRegion = {
+  start: 0,
+  end: 0,
+  text: "",
+};
+
+export function getSelectedRegion() {
+  return parseRegion(
+    currentSheet().selectedRegions().values().next().value || "0,0:0,0",
+  );
+}
+
 export function positionCellInput() {
   setCellInputInfo.byRef((pos) => {
-    const region = parseRegion(
-      currentSheet().selectedRegions().values().next().value || "0,0:0,0",
-    );
+    const region = getSelectedRegion();
     pos.id = getCellId(region.startCol, region.startRow);
     const quad = regionToQuad({
       startCol: region.startCol,
@@ -56,10 +73,6 @@ export function positionCellInput() {
     pos.y = quad[1];
     pos.width = quad[2];
     pos.height = quad[3];
-    setCellText(
-      currentSheet().textCells()[getCellIdx(region.startCol, region.startRow)]
-        ?.text ?? "",
-    );
   });
 }
 
@@ -133,7 +146,31 @@ export function computeCells(cells: TextMap) {
           : value.text;
     } catch (e) {
       value.computed = e;
-      console.error(e);
+    }
+  }
+}
+
+export function forEachSelectedTextCell(
+  textCells: TextMap,
+  callback: (textCell: TextCell, idx: number) => void,
+) {
+  const selectedRegions = currentSheet().selectedRegions();
+  const parsedRegions: Record<string, Region> = {};
+  for (const t in textCells) {
+    const idx = +t;
+    const col = idx % MAX_COLS;
+    const row = Math.floor(idx / MAX_COLS);
+    const region: Region = {
+      startCol: col,
+      startRow: row,
+      endCol: col,
+      endRow: row,
+    };
+
+    for (const s of selectedRegions) {
+      if (!parsedRegions[s]) parsedRegions[s] = parseRegion(s);
+      if (regionsOverlap(region, parsedRegions[s]))
+        callback(textCells[idx], idx);
     }
   }
 }

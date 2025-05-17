@@ -5,6 +5,8 @@ import FontSelector from "./FontSelector";
 import {
   computeCells,
   currentSheet,
+  forEachSelectedTextCell,
+  getSelectedRegion,
   prefersDark,
   setPrefersDark,
   setTouchSelection,
@@ -13,7 +15,8 @@ import {
 import { isTouchscreen } from "./utils";
 import { decodeXLSXData, encodeXLSXData, formatSheetData } from "./saves";
 import { DIVIDER_STYLE, MAX_COLS } from "./config";
-import { parseRegion } from "./region";
+import { Parser } from "./sheetFormula/parser";
+import { shiftAST, stringify } from "./sheetFormula/evaluator";
 
 export const [dbg, setDbg] = ref(false);
 
@@ -21,10 +24,7 @@ export default function Header() {
   let controlsEl!: HTMLElement;
 
   function insertLine(isRow: boolean, delta: number) {
-    const region = parseRegion(
-      currentSheet().selectedRegions().values().next().value ?? "0,0:0,0",
-    );
-
+    const region = getSelectedRegion();
     const insertAt = (isRow ? region.startRow : region.startCol) + delta;
 
     const getDim = isRow
@@ -50,6 +50,25 @@ export default function Header() {
         }
       }
 
+      for (const idxStr of Object.keys(textCells)) {
+        const idx = Number(idxStr);
+        let { text, computed, style } = textCells[idx];
+
+        if (text.startsWith("=")) {
+          const ast = new Parser(text.slice(1)).parseExpression();
+          const shifted = shiftAST(ast, isRow, insertAt);
+          text = `=${stringify(shifted)}`;
+          textCells[idx] = { text, computed, style };
+        }
+      }
+
+      computeCells(textCells);
+    });
+  }
+
+  function clearSelection() {
+    currentSheet().setTextCells.byRef((textCells) => {
+      forEachSelectedTextCell(textCells, (_, idx) => delete textCells[idx]);
       computeCells(textCells);
     });
   }
@@ -61,7 +80,7 @@ export default function Header() {
       </h1>
       <section
         $ref={controlsEl}
-        class="overflow-auto flex h-full gap-2 *:flex-none *:w-max scrollbar-hidden min-[825px]:justify-end"
+        class="overflow-auto flex h-full gap-2 *:flex-none *:w-max scrollbar-hidden min-[1100px]:justify-end"
       >
         <button
           $if={isTouchscreen}
@@ -77,7 +96,16 @@ export default function Header() {
         <button
           data-icon
           type="button"
-          class="px-2 rounded-sm h-full aspect-square"
+          class="rounded-square"
+          title="Clear selection"
+          on:click={clearSelection}
+        >
+          
+        </button>
+        <button
+          data-icon
+          type="button"
+          class="rounded-square"
           title="Column left"
           on:click={() => insertLine(false, 0)}
         >
@@ -86,7 +114,7 @@ export default function Header() {
         <button
           data-icon
           type="button"
-          class="px-2 rounded-sm h-full aspect-square"
+          class="rounded-square"
           title="Column right"
           on:click={() => insertLine(false, 1)}
         >
@@ -95,7 +123,7 @@ export default function Header() {
         <button
           data-icon
           type="button"
-          class="px-2 rounded-sm h-full aspect-square"
+          class="rounded-square"
           title="Row down"
           on:click={() => insertLine(true, 1)}
         >
@@ -104,7 +132,7 @@ export default function Header() {
         <button
           data-icon
           type="button"
-          class="px-2 rounded-sm h-full aspect-square"
+          class="rounded-square"
           title="Row up"
           on:click={() => insertLine(true, 0)}
         >
@@ -123,27 +151,29 @@ export default function Header() {
           SAVE
         </button>
         <button
+          data-icon
           type="button"
-          class="px-2 rounded-sm font-bold h-full aspect-square"
+          class="rounded-square"
           class:selected={dbg()}
           title="Debug Info"
           on:click={() => setDbg(!dbg())}
         >
-          ?
+          
         </button>
         <div class={DIVIDER_STYLE} />
         <button
+          data-icon
           type="button"
-          class="min-w-4 px-2 rounded-sm h-full aspect-square"
+          class="min-w-4 rounded-square"
           on:click={() => setPrefersDark(!prefersDark())}
         >
-          <i>{prefersDark() ? "" : ""}</i>
+          {prefersDark() ? "" : ""}
         </button>
       </section>
       <button
         data-icon
         type="button"
-        class="rounded-sm min-[825px]:hidden!"
+        class="rounded-sm min-[1100px]:hidden!"
         on:click={() =>
           controlsEl.scrollTo({
             left: controlsEl.scrollWidth,

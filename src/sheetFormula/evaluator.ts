@@ -1,6 +1,13 @@
 import { Parser, type ASTNode } from "./parser";
-import { getCellIdx, fromAlphaUpper, fromAlphaLower } from "../utils";
+import {
+  getCellIdx,
+  fromAlphaUpper,
+  fromAlphaLower,
+  toAlphaUpper,
+  toAlphaLower,
+} from "../utils";
 import type { Sheets } from "~/types";
+import { FUNCTIONS } from "./builtin";
 
 /**
  * Evaluate a formula within a named sheet context; returns single number.
@@ -17,7 +24,7 @@ export function evaluateFormula(
 }
 
 // Internal eval can return either number or number[]
-type EvalResult = number | number[];
+export type EvalResult = number | number[];
 
 /**
  * Recursively evaluate AST; ranges => number[].
@@ -67,16 +74,11 @@ function evaluate(
 
     case "func": {
       const rawArgs = node.args.map((arg) => evaluate(arg, sheetName, sheets));
-      switch (node.name) {
-        case "SUM":
-          return rawArgs.reduce<number>(
-            (total, a) =>
-              total + (Array.isArray(a) ? a.reduce((t, v) => t + v, 0) : a),
-            0,
-          );
-        default:
-          throw new Error(`Unknown function: ${node.name}`);
-      }
+      const name = node.name.toUpperCase();
+
+      const fn = FUNCTIONS[name];
+      if (!fn) throw new Error(`Unknown function: ${node.name}`);
+      return fn(rawArgs);
     }
   }
 }
@@ -136,6 +138,72 @@ function flattenRange(
     }
   }
   return out;
+}
+
+export function stringify(node: ASTNode): string {
+  switch (node.type) {
+    case "number":
+      return node.value.toString();
+    case "cell": {
+      const [c, r] = parseCellId(node.id);
+      return (
+        (node.sheet ? `${node.sheet}!` : "") + toAlphaUpper(c) + toAlphaLower(r)
+      );
+    }
+    case "range": {
+      const start = node.start;
+      const end = node.end;
+      return `${node.sheet ? `${node.sheet}!` : ""}${start}:${end}`;
+    }
+    case "binary":
+      return `${stringify(node.left)}${node.op}${stringify(node.right)}`;
+    case "func":
+      return `${node.name}(${node.args.map(stringify).join(",")})`;
+  }
+}
+
+export function shiftAST(
+  node: ASTNode,
+  isRow: boolean,
+  insertAt: number,
+): ASTNode {
+  const shiftCoord = (id: string): string => {
+    const [c0, r0] = parseCellId(id);
+    const c =
+      isRow && r0 >= insertAt ? c0 : !isRow && c0 >= insertAt ? c0 + 1 : c0;
+    const r =
+      isRow && r0 >= insertAt ? r0 + 1 : !isRow && c0 >= insertAt ? r0 : r0;
+    return toAlphaUpper(c) + toAlphaLower(r);
+  };
+
+  switch (node.type) {
+    case "cell":
+      return {
+        ...node,
+        id: shiftCoord(node.id),
+      };
+    case "range":
+      return {
+        ...node,
+        start: shiftCoord(node.start),
+        end: shiftCoord(node.end),
+      };
+    case "binary":
+      return {
+        type: "binary",
+        op: node.op,
+        left: shiftAST(node.left, isRow, insertAt),
+        right: shiftAST(node.right, isRow, insertAt),
+      };
+    case "func":
+      return {
+        type: "func",
+        name: node.name,
+        args: node.args.map((arg) => shiftAST(arg, isRow, insertAt)),
+      };
+    default:
+      return node; // number
+  }
 }
 
 function parseCellId(id: string): [number, number] {

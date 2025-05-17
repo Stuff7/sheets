@@ -5,6 +5,7 @@ import {
   getMousePosition,
   isTouchscreen,
   getCellId,
+  getCellIdx,
 } from "./utils";
 import {
   canvasRect,
@@ -25,6 +26,8 @@ import {
   positionCellInput,
   cellInputInfo,
   setCellText,
+  getSelectedRegion,
+  lastFormulaRegion,
 } from "./state";
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
@@ -46,10 +49,6 @@ export default function GridControls() {
   let areaLeft = {} as Cell;
   let areaTop = {} as Cell;
   let areaStart = {} as Cell;
-
-  let cellInputStart = 0;
-  let cellInputEnd = 0;
-  let cellInputText = "";
 
   watchFn(scroll, () => {
     firstCol = computeFirstVisibleColumn(scroll().x);
@@ -75,10 +74,6 @@ export default function GridControls() {
     if (areaTop.row == null || areaStart.row < areaTop.row) {
       areaTop = { ...areaStart };
     }
-
-    cellInputStart = cellInputEl().selectionStart;
-    cellInputEnd = cellInputEl().selectionEnd;
-    cellInputText = cellInputEl().value;
 
     hasDragged = false;
     updateSelection(ev);
@@ -130,26 +125,37 @@ export default function GridControls() {
     if (cellText()[0] !== "=") {
       cellInputEl().blur();
     } else if (document.activeElement === cellInputEl()) {
-      const selection = currentSheet().selectedRegions().values().next()?.value;
-      if (!selection) return;
+      const selections = currentSheet().selectedRegions();
+      if (!selections.size) return;
 
-      const region = parseRegion(selection);
-      let text = getCellId(region.startCol, region.startRow);
-      if (
-        region.startCol !== region.endCol ||
-        region.startRow !== region.endRow
-      ) {
-        text = `${text}:${getCellId(region.endCol, region.endRow)}`;
+      let text = "";
+      for (const selection of selections) {
+        const region = parseRegion(selection);
+        if (
+          region.startCol === cellInputInfo().col &&
+          region.startRow === cellInputInfo().row
+        )
+          return;
+
+        if (text) text += ",";
+
+        text += getCellId(region.startCol, region.startRow);
+        if (
+          region.startCol !== region.endCol ||
+          region.startRow !== region.endRow
+        ) {
+          text = `${text}:${getCellId(region.endCol, region.endRow)}`;
+        }
       }
 
       setCellText(
-        cellInputText.slice(0, cellInputStart) +
+        lastFormulaRegion.text.slice(0, lastFormulaRegion.start) +
           text +
-          cellInputText.slice(cellInputEnd),
+          lastFormulaRegion.text.slice(lastFormulaRegion.end),
       );
 
       cellInputEl().selectionStart = cellInputEl().selectionEnd =
-        cellInputStart + text.length;
+        lastFormulaRegion.start + text.length;
     }
   }
 
@@ -257,6 +263,16 @@ export default function GridControls() {
     cellInputEl().focus();
   }
 
+  function updateText() {
+    if (!isCellInputVisible()) {
+      const region = getSelectedRegion();
+      setCellText(
+        currentSheet().textCells()[getCellIdx(region.startCol, region.startRow)]
+          ?.text ?? "",
+      );
+    }
+  }
+
   return (
     <>
       <div
@@ -283,6 +299,7 @@ export default function GridControls() {
           on:touchstart={startSelection}
           on:touchmove={doSelection}
           on:touchend={endSelection}
+          on:click={updateText}
           on:dblclick={showCellInput}
         >
           <For
