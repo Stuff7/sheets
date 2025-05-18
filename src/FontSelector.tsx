@@ -28,7 +28,7 @@ export default function FontSelector() {
   }
 
   return (
-    <fieldset class="flex gap-2 h-full">
+    <fieldset class="flex gap-2 h-full *:flex-none *:w-max">
       <select
         class="h-full"
         on:change={(ev) => updateFont("family", ev.currentTarget.value)}
