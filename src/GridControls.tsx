@@ -14,7 +14,7 @@ import {
   scroll,
   setScroll,
   setScrollEl,
-  touchSelection,
+  touchSelecting,
   ctrlPressed,
   setSelectedColor,
   prefersDark,
@@ -28,6 +28,7 @@ import {
   setCellText,
   getSelectedRegion,
   lastFormulaRegion,
+  setTouchSelecting,
 } from "./state";
 import Dbg from "./Dbg";
 import type { Cell, PartialCell } from "./types";
@@ -39,7 +40,7 @@ import {
   regionsOverlap,
 } from "./region";
 import For from "jsx/components/For";
-import { selectedFont } from "./FontSelector";
+import { formatMap, selectedFont } from "./FontSelector";
 
 export default function GridControls() {
   let isSelecting = false;
@@ -55,15 +56,12 @@ export default function GridControls() {
     firstRow = computeFirstVisibleRow(scroll().y);
   });
 
-  function doSelection(ev: MouseEvent | TouchEvent) {
+  function doSelection(ev: PointerEvent) {
     if (!isSelecting) return;
     updateSelection(ev);
   }
 
-  let hasDragged = false;
-
-  function startSelection(ev: MouseEvent | TouchEvent) {
-    if (isTouchscreen && !touchSelection()) return;
+  function startSelection(ev: PointerEvent) {
     ev.preventDefault();
     getCellAtCursor(ev, areaStart);
 
@@ -75,10 +73,8 @@ export default function GridControls() {
       areaTop = { ...areaStart };
     }
 
-    hasDragged = false;
     updateSelection(ev);
     isSelecting = true;
-    updateSelectedColor();
   }
 
   watchFn(prefersDark, updateSelectedColor);
@@ -104,20 +100,18 @@ export default function GridControls() {
     setSelectedColor(cellColor ?? defaultCellColor());
   }
 
-  function updateSelection(ev: MouseEvent | TouchEvent) {
+  function updateSelection(ev: PointerEvent) {
     const areaEnd = getCellAtCursor(ev);
-
-    if (areaEnd.col !== areaStart.col || areaEnd.row !== areaStart.row) {
-      hasDragged = true;
-    }
 
     const startCol = Math.min(areaStart.col, areaEnd.col);
     const endCol = Math.max(areaStart.col, areaEnd.col);
     const startRow = Math.min(areaStart.row, areaEnd.row);
     const endRow = Math.max(areaStart.row, areaEnd.row);
 
-    if (!ctrlPressed())
+    if (!ctrlPressed()) {
       currentSheet().setLastSelectedRegions.byRef((sel) => sel.clear());
+    }
+
     const sel = new Set(currentSheet().lastSelectedRegions());
     carveRegion(sel, startCol, startRow, endCol, endRow);
     currentSheet().setSelectedRegions(sel);
@@ -177,7 +171,8 @@ export default function GridControls() {
       currentSheet().setSelectedQuads.byRef((quads) => {
         quads.length = 0;
         for (const r of currentSheet().selectedRegions()) {
-          quads.push(...regionToQuad(parseRegion(r)));
+          const quad = regionToQuad(parseRegion(r));
+          quads.push({ x: quad[0], y: quad[1], w: quad[2], h: quad[3] });
         }
       });
 
@@ -213,16 +208,19 @@ export default function GridControls() {
       ),
   );
 
-  function endSelection() {
+  function endSelection(ev: PointerEvent) {
+    if (isTouchscreen) {
+      if (!isSelecting) startSelection(ev);
+      setTouchSelecting(false);
+    }
     if (!isSelecting) return;
-    if (isTouchscreen && !touchSelection()) return;
     isSelecting = false;
     currentSheet().setLastSelectedRegions(
       new Set(currentSheet().selectedRegions()),
     );
   }
 
-  function getCellAtCursor(ev: MouseEvent | TouchEvent, c = {} as Cell) {
+  function getCellAtCursor(ev: PointerEvent, c = {} as Cell) {
     const cursor = getMousePosition(ev);
 
     c.col = computeFirstVisibleColumn(
@@ -278,7 +276,7 @@ export default function GridControls() {
       <div
         $refFn={setScrollEl}
         class="absolute right-0"
-        class:overflow-auto={!touchSelection()}
+        class:overflow-auto={!touchSelecting()}
         style:top={`${canvasRect().y}px`}
         style:width={`${canvasRect().width}px`}
         style:height={`${canvasRect().height}px`}
@@ -293,12 +291,11 @@ export default function GridControls() {
           tabindex={0}
           style:width={`${CELL_W * MAX_COLS + totalOffsets(currentSheet().colOffsets())}px`}
           style:height={`${CELL_H * MAX_ROWS + totalOffsets(currentSheet().rowOffsets())}px`}
-          on:mousedown={startSelection}
-          on:mousemove={doSelection}
-          on:mouseup={endSelection}
-          on:touchstart={startSelection}
-          on:touchmove={doSelection}
-          on:touchend={endSelection}
+          on:pointerdown={
+            isTouchscreen ? undefined : (ev) => startSelection(ev)
+          }
+          g:onpointermove={doSelection}
+          on:pointerup={endSelection}
           on:click={updateText}
           on:dblclick={showCellInput}
         >
@@ -330,12 +327,34 @@ export default function GridControls() {
                   #ERROR!
                 </strong>
                 <span $if={typeof t().cell.computed === "string"}>
-                  {t().cell.computed}
+                  {formatMap[t().cell.style.format](t().cell.computed)}
                 </span>
               </div>
             )}
           />
         </div>
+        <For
+          each={currentSheet().selectedQuads()}
+          do={(q) => (
+            <div
+              class="absolute bg-indigo-500/50 dark:bg-emerald-500/50 pointer-events-none"
+              style:left={`${q().x}px`}
+              style:top={`${q().y}px`}
+              style:width={`${q().w}px`}
+              style:height={`${q().h}px`}
+            >
+              <button
+                $if={isTouchscreen}
+                type="button"
+                class="absolute no-color bg-indigo-500 dark:bg-emerald-500 rounded-full w-6 h-6 bottom-0 right-0 translate-1/2 pointer-events-auto"
+                on:pointerdown={() => {
+                  setTouchSelecting(true);
+                  isSelecting = true;
+                }}
+              />
+            </div>
+          )}
+        />
         <pre
           class="absolute z-10 h-8 w-25 p-1 outline outline-indigo-500 dark:outline-emerald-500 whitespace-pre-wrap pointer-events-none"
           class:hidden={!isCellInputVisible()}

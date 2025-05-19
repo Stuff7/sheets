@@ -35,6 +35,7 @@ export type FontStyle = {
   italic: boolean;
   underline: boolean;
   strikethrough: boolean;
+  format: string;
 };
 
 export type TextCell = {

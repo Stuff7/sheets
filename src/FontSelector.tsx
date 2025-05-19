@@ -5,6 +5,7 @@ import {
   DEFAULT_BOLD,
   DEFAULT_FONT_COLOR,
   DEFAULT_FONT_FAMILY,
+  DEFAULT_FONT_FORMAT,
   DEFAULT_FONT_SIZE,
   DEFAULT_ITALIC,
   DEFAULT_STRIKETHROUGH,
@@ -14,6 +15,7 @@ import {
 import type { FontStyle } from "./types";
 import ColorPicker from "./ColorPicker";
 import Checkbox from "./Checkbox";
+import { isSafari } from "./utils";
 
 export default function FontSelector() {
   function updateFont<K extends keyof FontStyle>(k: K, v: FontStyle[K]) {
@@ -28,7 +30,9 @@ export default function FontSelector() {
   }
 
   return (
-    <fieldset class="flex gap-2 h-full *:flex-none *:w-max">
+    <fieldset
+      class={`flex gap-2 h-full *:flex-none ${isSafari ? "*:w-max" : ""}`}
+    >
       <select
         class="h-full"
         on:change={(ev) => updateFont("family", ev.currentTarget.value)}
@@ -37,6 +41,17 @@ export default function FontSelector() {
           each={fontList}
           do={(f) => (
             <option selected={f() === selectedFont().family}>{f()}</option>
+          )}
+        />
+      </select>
+      <select
+        class="h-full"
+        on:change={(ev) => updateFont("format", ev.currentTarget.value)}
+      >
+        <FixedFor
+          each={formatList}
+          do={(f) => (
+            <option selected={f() === selectedFont().format}>{f()}</option>
           )}
         />
       </select>
@@ -89,13 +104,43 @@ export default function FontSelector() {
       <div class={DIVIDER_STYLE} />
       <ColorPicker
         color={selectedFont().color}
-        onChange={(v) => updateFont("color", v)}
+        onChange={(v) => updateFont("format", v)}
       >
         <strong>Aa</strong>
       </ColorPicker>
     </fieldset>
   );
 }
+
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+function parseNumCell<T>(s: string, cb: (n: number) => T) {
+  const n = Number(s);
+  return Number.isNaN(n) ? s : cb(n);
+}
+
+export const formatMap = {
+  Number: (s: string) =>
+    parseNumCell(s, (n) => (n % 1 === 0 ? s : n.toFixed(2))),
+  Currency: (s: string) => parseNumCell(s, (n) => currencyFormatter.format(n)),
+  Date: (s: string) => {
+    try {
+      return new Date(s).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch (_) {
+      return s;
+    }
+  },
+  Integer: (s: string) => parseNumCell(s, (n) => Math.floor(n)),
+};
+
+const formatList = Object.keys(formatMap);
 
 const fontList = [
   "Amatic SC",
@@ -128,4 +173,5 @@ export const [selectedFont, setSelectedFont] = ref<FontStyle>({
   italic: DEFAULT_ITALIC,
   underline: DEFAULT_UNDERLINE,
   strikethrough: DEFAULT_STRIKETHROUGH,
+  format: DEFAULT_FONT_FORMAT,
 });

@@ -29,7 +29,6 @@ import { parseRegion, regionsOverlap } from "./region";
 watchFn(
   () => [
     canvasRect(),
-    currentSheet().selectedQuads(),
     currentSheet().colorQuads(),
     currentSheet().colOffsets(),
     currentSheet().rowOffsets(),
@@ -82,10 +81,6 @@ watchFn(
       return [visibleRegions, numQuads];
     };
 
-    const [selRegions, numSelQuads] = filterVisibleRegions(
-      currentSheet().selectedRegions(),
-      currentSheet().selectedQuads(),
-    );
     const colors: Record<string, number[]> = {};
     const numColors: number[] = [];
     for (const color in currentSheet().colorQuads()) {
@@ -100,7 +95,7 @@ watchFn(
     }
 
     setInstances.byRef((inst) => {
-      const numCells = numSelQuads + numColors.reduce((t, n) => t + n, 0);
+      const numCells = numColors.reduce((t, n) => t + n, 0);
       inst.resize(rows + cols + numCells);
 
       let instOffset = 0;
@@ -150,8 +145,6 @@ watchFn(
         drawRegions(inst, quads, instOffset, hexToRgba(color), n / 10);
         instOffset += numColors[n++];
       }
-
-      drawRegions(inst, selRegions, instOffset, undefined, 5);
 
       resizeInstances(inst.data);
     });

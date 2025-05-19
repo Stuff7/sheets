@@ -6,6 +6,7 @@ import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
   DEFAULT_FONT_COLOR,
+  DEFAULT_FONT_FORMAT,
 } from "./config";
 
 // Constants
@@ -17,6 +18,12 @@ const CNT32 = 4;
 const COLOR_ENTRY_SIZE = 1 + 3;
 const REGION_BLOCK_SIZE = 1 + 4 + 4 + 2 + 2;
 const OFFSET_ENTRY_SIZE = 4 + 2;
+
+// Helper IDs for style extras
+const STYLE_ID_FAMILY = 1;
+const STYLE_ID_SIZE = 2;
+const STYLE_ID_COLOR = 3;
+const STYLE_ID_FORMAT = 4; // New
 
 type SheetData = {
   regions: RegionMap;
@@ -39,11 +46,6 @@ export function formatSheetData() {
   }
   return data;
 }
-
-// Helper IDs for style extras
-const STYLE_ID_FAMILY = 1;
-const STYLE_ID_SIZE = 2;
-const STYLE_ID_COLOR = 3;
 
 // Encode
 export function encodeXLSXData(sheets: Sheets): Uint8Array {
@@ -103,19 +105,20 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
     const textBlocks = Object.entries(texts).map(([k, cell]) => {
       const idx = +k;
       const textBytes = encoder.encode(cell.text);
-      // pack style
+      // pack style flags
       let flags = 0;
       if (cell.style.bold) flags |= 1;
       if (cell.style.italic) flags |= 2;
       if (cell.style.underline) flags |= 4;
       if (cell.style.strikethrough) flags |= 8;
+
       const extras: (Uint8Array | number)[] = [];
       const extraIDs: number[] = [];
+
       // family
       if (cell.style.family !== DEFAULT_FONT_FAMILY) {
         extraIDs.push(STYLE_ID_FAMILY);
         const b = encoder.encode(cell.style.family);
-        // store length+data as Uint8Array
         extras.push(new Uint8Array([b.length, ...b]));
       }
       // size
@@ -129,6 +132,13 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
         const c = encoder.encode(cell.style.color);
         extras.push(new Uint8Array([c.length, ...c]));
       }
+      // format
+      if (cell.style.format && cell.style.format !== "") {
+        extraIDs.push(STYLE_ID_FORMAT);
+        const fmtBytes = encoder.encode(cell.style.format);
+        extras.push(new Uint8Array([fmtBytes.length, ...fmtBytes]));
+      }
+
       return { idx, textBytes, flags, extras, extraIDs };
     });
 
@@ -151,14 +161,12 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
     size += CNT32 * 4;
     size += s.regionBlocks.length * REGION_BLOCK_SIZE;
     for (const t of s.textBlocks) {
-      // idx(4) + textLen(2) + text + flags(1) + extraCount(1)
       size += 4 + 2 + t.textBytes.length + 1 + 1;
-      // for each extra: id(1) + data length
       for (let j = 0; j < t.extras.length; j++) {
         const data = t.extras[j];
         size += 1;
         if (typeof data === "number") {
-          size += 2; // uint16 size
+          size += 2;
         } else {
           size += data.byteLength;
         }
@@ -194,12 +202,11 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
 
   // SHEETS
   for (const s of sheetsData) {
-    // name
     view.setUint16(o, s.nameBytes.length, true);
     o += 2;
     u8.set(s.nameBytes, o);
     o += s.nameBytes.length;
-    // counts
+
     view.setUint32(o, s.regionBlocks.length, true);
     o += 4;
     view.setUint32(o, s.textBlocks.length, true);
@@ -209,7 +216,6 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
     view.setUint32(o, s.colOff.length, true);
     o += 4;
 
-    // regions
     for (const r of s.regionBlocks) {
       view.setUint8(o++, r.cid);
       view.setUint32(o, r.sr, true);
@@ -222,7 +228,6 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
       o += 2;
     }
 
-    // texts
     for (const t of s.textBlocks) {
       view.setUint32(o, t.idx, true);
       o += 4;
@@ -230,11 +235,12 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
       o += 2;
       u8.set(t.textBytes, o);
       o += t.textBytes.length;
-      // style flags & extras
+
       view.setUint8(o, t.flags);
       o += 1;
       view.setUint8(o, t.extras.length);
       o += 1;
+
       for (let j = 0; j < t.extras.length; j++) {
         view.setUint8(o, t.extraIDs[j]);
         o += 1;
@@ -249,7 +255,6 @@ export function encodeXLSXData(sheets: Sheets): Uint8Array {
       }
     }
 
-    // offsets
     for (const r of s.rowOff) {
       view.setUint32(o, r.i, true);
       o += 4;
@@ -273,7 +278,6 @@ export function decodeXLSXData(data: Uint8Array): Sheets {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let o = 0;
 
-  // HEADER
   const magic = decoder.decode(data.subarray(o, o + 4));
   if (magic !== XLSX_MAGIC) throw new Error("Invalid XLSX_MAGIC");
   o += 4;
@@ -285,7 +289,6 @@ export function decodeXLSXData(data: Uint8Array): Sheets {
   const colorCount = view.getUint32(o, true);
   o += 4;
 
-  // color table
   const colorTable: string[] = [];
   for (let i = 0; i < colorCount; i++) {
     const id = view.getUint8(o++);
@@ -341,7 +344,7 @@ export function decodeXLSXData(data: Uint8Array): Sheets {
       o += L;
       const flags = view.getUint8(o++);
       const extraCount = view.getUint8(o++);
-      // start with defaults
+
       const style: FontStyle = {
         family: DEFAULT_FONT_FAMILY,
         size: DEFAULT_FONT_SIZE,
@@ -350,7 +353,9 @@ export function decodeXLSXData(data: Uint8Array): Sheets {
         italic: !!(flags & 2),
         underline: !!(flags & 4),
         strikethrough: !!(flags & 8),
+        format: DEFAULT_FONT_FORMAT,
       };
+
       for (let e = 0; e < extraCount; e++) {
         const id = view.getUint8(o++);
         if (id === STYLE_ID_FAMILY) {
@@ -364,9 +369,14 @@ export function decodeXLSXData(data: Uint8Array): Sheets {
           const len = view.getUint8(o++);
           style.color = decoder.decode(data.subarray(o, o + len));
           o += len;
+        } else if (id === STYLE_ID_FORMAT) {
+          const len = view.getUint8(o++);
+          style.format = decoder.decode(data.subarray(o, o + len));
+          o += len;
         }
       }
-      texts[idx] = { text: str, style };
+
+      texts[idx] = { text: str, style, computed: "" };
     }
 
     const rowOffsets: OffsetMap = {};

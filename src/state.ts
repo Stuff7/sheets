@@ -16,7 +16,7 @@ import type {
   TextQuad,
 } from "./types";
 import { Mat4 } from "./math";
-import { getCellId, isTouchscreen } from "./utils";
+import { getCellId } from "./utils";
 import {
   parseRegion,
   type Region,
@@ -27,10 +27,10 @@ import { evaluateFormula } from "./sheetFormula/evaluator";
 
 export const [canvasRect, setCanvasRect] = ref(new DOMRect());
 export const [selectedColor, setSelectedColor] = ref("");
-export const [ctrlPressed, setCtrlPressed] = ref(isTouchscreen);
+export const [ctrlPressed, setCtrlPressed] = ref(false);
 export const [scrollEl, setScrollEl] = ref<HTMLDivElement>();
 export const [scroll, setScroll] = ref({ x: 0, y: 0 });
-export const [touchSelection, setTouchSelection] = ref(false);
+export const [touchSelecting, setTouchSelecting] = ref(false);
 export const [cellText, setCellText] = ref("");
 
 export const [cellInputEl, setCellInputEl] = ref<HTMLTextAreaElement>();
@@ -96,7 +96,9 @@ export function createSheet(sheetName: string) {
     new Set<string>(["0,0:0,0"]),
   );
   const [selectedRegions, setSelectedRegions] = ref(new Set<string>());
-  const [selectedQuads, setSelectedQuads] = ref<number[]>([]);
+  const [selectedQuads, setSelectedQuads] = ref<
+    { x: number; y: number; w: number; h: number }[]
+  >([]);
   const [colorRegions, setColorRegions] = ref<RegionMap>({});
   const [colorQuads, setColorQuads] = ref<Record<string, number[]>>({});
   const [textCells, setTextCells] = ref<TextMap>({});

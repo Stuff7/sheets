@@ -52,7 +52,7 @@
 }
 
 @utility rounded-square {
-  @apply px-2 rounded-sm h-full aspect-square text-center;
+  @apply px-2 rounded-sm h-full aspect-square text-center flex items-center justify-center;
 }
 
 html, body {

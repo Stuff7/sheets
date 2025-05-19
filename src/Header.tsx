@@ -4,19 +4,21 @@ import CellColorPicker from "./CellColorPicker";
 import FontSelector from "./FontSelector";
 import {
   computeCells,
+  createSheet,
   currentSheet,
+  defaultCellColor,
   forEachSelectedTextCell,
   getSelectedRegion,
   prefersDark,
+  setCurrentSheet,
   setPrefersDark,
-  setTouchSelection,
-  touchSelection,
+  setSheets,
 } from "./state";
-import { isTouchscreen } from "./utils";
 import { decodeXLSXData, encodeXLSXData, formatSheetData } from "./saves";
 import { DIVIDER_STYLE, MAX_COLS } from "./config";
 import { Parser } from "./sheetFormula/parser";
 import { shiftAST, stringify } from "./sheetFormula/evaluator";
+import { parseRegion, regionToQuad } from "./region";
 
 export const [dbg, setDbg] = ref(false);
 
@@ -73,6 +75,65 @@ export default function Header() {
     });
   }
 
+  function exportData() {
+    const encoded = encodeXLSXData(formatSheetData());
+    const blob = new Blob([encoded], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "spreadsheet";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(this: HTMLInputElement) {
+    const file = this.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (!(reader.result instanceof ArrayBuffer)) return;
+      const data = new Uint8Array(reader.result);
+      const decoded = decodeXLSXData(data);
+
+      setSheets.byRef((sheets) => {
+        sheets.length = 0;
+        for (const name in decoded) {
+          const s = createSheet(name);
+          const d = decoded[name];
+
+          s.setColOffsets(d.colOffsets);
+          s.setRowOffsets(d.rowOffsets);
+          s.setTextCells(d.texts);
+          s.setColorRegions(d.regions);
+
+          s.setColorQuads.byRef((colors) => {
+            for (const color in d.regions) {
+              if (color !== defaultCellColor()) {
+                const c = colors[color] ?? [];
+                c.length = 0;
+                for (const k of d.regions[color]) {
+                  c.push(...regionToQuad(parseRegion(k)));
+                }
+                colors[color] = c;
+              }
+            }
+          });
+          computeCells(s.textCells());
+          sheets.push(s);
+        }
+
+        computeCells(sheets[0].textCells());
+        setCurrentSheet(sheets[0]);
+      });
+    };
+
+    reader.readAsArrayBuffer(file);
+  }
+
   return (
     <header class="grid grid-cols-[auto_1fr_max-content] items-center gap-2 w-full p-2 bg-stone-300 text-zinc-900 dark:bg-zinc-950 dark:text-stone-100">
       <h1 class="text-black text-xl text-inherit font-bold px-3">
@@ -80,16 +141,27 @@ export default function Header() {
       </h1>
       <section
         $ref={controlsEl}
-        class="overflow-auto flex h-full gap-2 *:flex-none *:w-max scrollbar-hidden min-[1100px]:justify-end"
+        class="overflow-auto flex h-full gap-2 *:flex-none *:w-max scrollbar-hidden min-[1245px]:justify-end"
       >
         <button
-          $if={isTouchscreen}
+          data-icon
           type="button"
-          class="px-2 h-full rounded-sm bg-indigo-500 hover:bg-indigo-700 text-zinc-50 dark:bg-emerald-500 dark:hover:bg-emerald-300 dark:text-zinc-900"
-          on:click={() => setTouchSelection(!touchSelection())}
+          class="rounded-square"
+          title="Export"
+          on:click={exportData}
         >
-          {touchSelection() ? "Selecting" : "Select"}
+          
         </button>
+        <label
+          data-button
+          data-icon
+          title="Import"
+          class="rounded-square leading-[27px]"
+        >
+          
+          <input type="file" class="hidden" on:change={importData} />
+        </label>
+        <div class={DIVIDER_STYLE} />
         <FontSelector />
         <CellColorPicker />
         <div class={DIVIDER_STYLE} />
@@ -140,17 +212,6 @@ export default function Header() {
         </button>
         <div class={DIVIDER_STYLE} />
         <button
-          type="button"
-          class="px-2 rounded-sm"
-          on:click={() => {
-            const encoded = encodeXLSXData(formatSheetData());
-            console.log("Encoded", encoded);
-            console.log("Decoded", decodeXLSXData(encoded));
-          }}
-        >
-          SAVE
-        </button>
-        <button
           data-icon
           type="button"
           class="rounded-square"
@@ -173,7 +234,7 @@ export default function Header() {
       <button
         data-icon
         type="button"
-        class="rounded-sm min-[1100px]:hidden!"
+        class="rounded-sm min-[1245px]:hidden!"
         on:click={() =>
           controlsEl.scrollTo({
             left: controlsEl.scrollWidth,

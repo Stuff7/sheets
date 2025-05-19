@@ -44,6 +44,16 @@ export function totalOffsets(offsets: OffsetMap) {
 }
 
 export const isTouchscreen = navigator.maxTouchPoints > 0;
+export const isSafari = (() => {
+  const ua = navigator.userAgent;
+  const isAppleDevice = /Macintosh|iPad|iPhone/.test(ua);
+  const isWebKit = /WebKit/.test(ua) && !/Chrome|CriOS|FxiOS|Edg|OPR/.test(ua);
+  const isTouchDevice =
+    typeof navigator.maxTouchPoints === "number" &&
+    navigator.maxTouchPoints > 0;
+
+  return isAppleDevice && isWebKit && (isTouchDevice || /Safari/.test(ua));
+})();
 
 export function aligned2(v: number, alignment: number): number {
   return (v + (alignment - 1)) & ~(alignment - 1);
@@ -82,9 +92,11 @@ export function getMousePosition(ev: MouseEvent | TouchEvent): Pos2D {
   if (ev instanceof MouseEvent) {
     clientX = ev.clientX;
     clientY = ev.clientY;
-  } else if (ev instanceof TouchEvent && ev.touches.length > 0) {
-    clientX = ev.touches[0].clientX;
-    clientY = ev.touches[0].clientY;
+  } else if (ev instanceof TouchEvent) {
+    const touch = ev.touches[0] || ev.changedTouches[0];
+    if (!touch) return { x: -1, y: -1 };
+    clientX = touch.clientX;
+    clientY = touch.clientY;
   } else {
     return { x: -1, y: -1 };
   }
